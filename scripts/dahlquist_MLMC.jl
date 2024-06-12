@@ -2,18 +2,20 @@ using DrWatson
 @quickactivate "MLMC_Parareal"
 
 include(srcdir("experiment.jl"))
-include(srcdir("models.jl"))
+include(srcdir("problem.jl"))
+include(srcdir("models/dahlquist.jl"))
 
 u_0 = 1.0
 t_0 = 0.0
 t_end = 1.0
 λ = -1.0
 Δt_0 = 0.1
-p = dahlquist_problem(u_0, t_0, t_end, λ, Δt_0)
+p = Dahlquist_Problem(u_0, t_0, t_end, λ, Δt_0)
 
 deviation = 0.5
-L = 3
+L = 4
 ϵ = 1e-3
+qoi_fn = end_value
 
-e = MLMC_Experiment(p, MultilevelEstimators.Uniform(-deviation, deviation), L, ϵ)
+e = MLMC_Experiment(p, qoi_fn, Uniform(-deviation, deviation), L, ϵ)
 run(e)

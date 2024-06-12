@@ -2,40 +2,37 @@ using DrWatson
 @quickactivate "MLMC_Parareal"
 
 import Random
-import MultilevelEstimators
+using MultilevelEstimators
 include(srcdir("problem.jl"))
-
-### Distributions.jl allows us to sample random numbers
-### according to a distribution, e.g. Uniform() or Normal().
-### To make results reproducible*, we have to seed the PRNG
-### with a known value. Since we cannot query
-### the current seed, the idea is to seed the generator with a
-### random, but known number.
-###
-### Concern: Does this reduce the quality of our random numbers?
-###
-### *: Due to updates of the underlying algorithms, the sequence of
-###     random numbers generated from a given seed can change between
-###     Julia (minor) version updates.
-###     Also see https://docs.julialang.org/en/v1/stdlib/Random/#Reproducibility
 
 struct MLMC_Experiment
     ### Related to discretization of the problem
     problem::MLMC_Problem
-    # important fields:
-    #   solve::Function     # (level, ζ) -> solution u
-    #   qoi::Function       # solution u -> QoI
+    qoi::Function
     ### Related to random sampling
     seed::UInt           #
-    dist::MultilevelEstimators.AbstractDistribution  #
+    dist::AbstractDistribution  #
     ### Related to MLMC
     L::Int              # Use discretization levels l=0...L
     ϵ::Float64          # RMSE tolerance
     #
-    function MLMC_Experiment(problem::MLMC_Problem, dist=MultilevelEstimators.Uniform(0.0, 1.0), L=2, ϵ=1e-3; seed=rand(UInt))
+    ### Distributions.jl allows us to sample random numbers
+    ### according to a distribution, e.g. Uniform() or Normal().
+    ### To make results reproducible*, we have to seed the PRNG
+    ### with a known value. Since we cannot query
+    ### the current seed, the idea is to seed the generator with a
+    ### random, but known number.
+    ###
+    ### Concern: Does this reduce the quality of our random numbers?
+    ###
+    ### *: Due to updates of the underlying algorithms, the sequence of
+    ###     random numbers generated from a given seed can change between
+    ###     Julia (minor) version updates.
+    ###     Also see https://docs.julialang.org/en/v1/stdlib/Random/#Reproducibility
+    function MLMC_Experiment(problem::MLMC_Problem, qoi::Function, dist=Uniform(0.0, 1.0), L=2, ϵ=1e-3; seed=rand(UInt))
         # Seed PRNG
         Random.seed!(seed)
-        return new(problem, seed, dist, L, ϵ)
+        return new(problem, qoi, seed, dist, L, ϵ)
     end
 end
 
@@ -66,17 +63,17 @@ function run(experiment::MLMC_Experiment)
         l = level[1]
 
         # solve given sample (defined by ζ) on the current level
-        sol_current_l = experiment.problem.solve(l, ζ)
+        sol_current_l = solve(experiment.problem, l, ζ)
         # compute corresponding QoI
-        qoi_current_l = experiment.problem.qoi(sol_current_l)
+        qoi_current_l = experiment.qoi(sol_current_l)
 
         if l == 0
             return qoi_current_l, qoi_current_l
         end
         # solve given sample one level lower
-        sol_last_l = experiment.problem.solve(l - 1, ζ)
+        sol_last_l = solve(experiment.problem, l - 1, ζ)
         # compute QoI
-        qoi_last_l = experiment.problem.qoi(sol_last_l)
+        qoi_last_l = experiment.qoi(sol_last_l)
         qoi_diff = qoi_current_l - qoi_last_l
 
         return qoi_diff, qoi_current_l

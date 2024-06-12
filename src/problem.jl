@@ -1,13 +1,59 @@
 using DrWatson
 @quickactivate "MLMC_Parareal"
 
-### This type contains the problem that is passed to MLMC_experiment.
-### It is initialized with some certain parameters and provides the methods
-### solve(level, ζ) -> solution and
-### qoi(solution) -> QoI
+using DifferentialEquations
 
-struct MLMC_Problem
-    certain_parameters
-    solve::Function
-    qoi::Function
+
+### This type defines an MLMC Problem.
+### Primary use: Objects of this type are passed to MLMC_Experiment,
+### where solve(MLMC_Problem, level, ζ) is called.
+###
+### This file contains all the parts that can (hopefully) be reused.
+### For the usage, see examples in src/models/.
+### To create your own model:
+###     - derive a type from MLMC_Problem
+###     - if the default behavior of solve() and compute_timestep()
+###         as defined below work for you, you only have to implement
+###         instantiate_problem(::your_derived_type, ζ)
+###     - alternatively, implement solve(::your_derived_type, level, ζ)
+###         to have full control over how the solution is produced
+###     - this file contains some QoI functions that work on the solution
+###         of an ODEProblem. If you need another QoI function, implement it
+###         for the return type of solve(::your_derived_type, level, ζ)
+abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
+
+
+### Default behavior:
+###     - Compute timestep based on static information in the problem and current refinement level
+###     - Instantiate an ODEProblem based on static information and current random sample
+###     - solve resulting ODEProblem with explicit Euler and computed timestep
+function solve(problem::MLMC_Problem, level, ζ)
+    dt = compute_timestep(problem, level)
+    p::ODEProblem = instantiate_problem(problem, ζ)
+    return DifferentialEquations.solve(p, Euler(), dt=dt)
+end
+
+### Default behavior:
+###     - Start with initial timestep Δt_0 given in problem at level 0
+###     - halve in each higher level
+function compute_timestep(problem::MLMC_Problem, level)
+    return problem.Δt_0 / 2^level
+end
+
+
+### QoI functions for ODESolutions
+
+# End value
+function end_value(solution::ODESolution)
+    return solution[end]
+end
+
+# (squared) L2 norm
+function L2_squared(solution::ODESolution, pointwise_norm2=(x) -> sum(x .^ 2))
+    """
+        Compute the square of the L2 norm of the solution.
+        For multidimensional input, specify the pointwise (squared) norm function. Default: Euclidian norm
+    """
+    pointwise_sq = pointwise_norm2.(solution[:]) # squared norm in each timestep
+    return integrate(solution.t, pointwise_sq)
 end
