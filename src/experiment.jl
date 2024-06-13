@@ -63,7 +63,7 @@ function run(experiment::MLMC_Experiment)
         l = level[1]
 
         # solve given sample (defined by ζ) on the current level
-        sol_current_l = solve(experiment.problem, l, ζ)
+        sol_current_l = solve(experiment.problem, (l, experiment.L), ζ)
         # compute corresponding QoI
         qoi_current_l = experiment.qoi(sol_current_l)
 
@@ -71,7 +71,7 @@ function run(experiment::MLMC_Experiment)
             return qoi_current_l, qoi_current_l
         end
         # solve given sample one level lower
-        sol_last_l = solve(experiment.problem, l - 1, ζ)
+        sol_last_l = solve(experiment.problem, (l - 1, experiment.L), ζ)
         # compute QoI
         qoi_last_l = experiment.qoi(sol_last_l)
         qoi_diff = qoi_current_l - qoi_last_l

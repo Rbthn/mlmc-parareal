@@ -28,7 +28,8 @@ abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 ###     - Instantiate an ODEProblem based on static information and current random sample
 ###     - solve resulting ODEProblem with explicit Euler and computed timestep
 function solve(problem::MLMC_Problem, level, ζ)
-    dt = compute_timestep(problem, level)
+    l, L = level
+    dt = compute_timestep(problem, l)
     p::ODEProblem = instantiate_problem(problem, ζ)
     return DifferentialEquations.solve(p, Euler(), dt=dt)
 end
