@@ -2,6 +2,7 @@ name = "MLMC_Parareal"
 authors = ["Robert Hahn"]
 
 [deps]
+DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 MultilevelEstimators = "bc769cb7-f249-5bba-802a-80f19cb247ec"
 NumericalIntegration = "e7bfaba1-d571-5449-8927-abc22e82249b"
