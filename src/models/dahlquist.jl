@@ -13,13 +13,14 @@ struct Dahlquist_Problem{T,U} <: MLMC_Problem{T,U}
     λ               # factor in dahlquist equation
     Δt_0::T         # timestep at level 0
     use_parareal::Bool
+    name::String
 
     # define internal constructor to check inputs
     function Dahlquist_Problem(u_0::Vector{U}, t_0::T, t_end::T, λ, Δt_0; use_parareal=false) where {T<:AbstractFloat,U<:AbstractFloat}
         # validate time interval
         @assert t_0 <= t_end
 
-        return new{T,U}(u_0, t_0, t_end, λ, Δt_0, use_parareal)
+        return new{T,U}(u_0, t_0, t_end, λ, Δt_0, use_parareal, "Dahlquist")
     end
 
     # convert scalar unknown to 1D vector to please DifferentialEquations

@@ -87,6 +87,8 @@ function run(experiment::MLMC_Experiment)
         MultilevelEstimators.MC(), # Monte-Carlo sampling
         sample_function,    # (level, ζ) -> (ΔQ, Q)
         distributions,      # Vector of distributions for the different levels
+        folder=datadir(),
+        name=experiment.problem.name,
         ###
         max_index_set_param=experiment.L,
         min_index_set_param=experiment.L,   # force the use of all levels
