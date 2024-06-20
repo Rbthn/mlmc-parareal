@@ -1,7 +1,7 @@
 using DrWatson
 @quickactivate "MLMC_Parareal"
 
-import Random
+using Random
 using MultilevelEstimators
 include(srcdir("problem.jl"))
 
