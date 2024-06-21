@@ -1,6 +1,7 @@
 using DrWatson
 @quickactivate "MLMC_Parareal"
 
+using Dates
 using Random
 using MultilevelEstimators
 include(srcdir("problem.jl"))
@@ -56,8 +57,15 @@ function run(experiment::MLMC_Experiment; kwargs...)
     ############################################################################
     #########################   COLLECT SYSTEM INFO   ##########################
     ############################################################################
-    # TODO
-    info = Dict()
+    info = Dict(
+        :tstart => now(),
+        :tstop => DateTime(0),
+        :host => gethostname(),
+        :mem_total_GiB => Sys.total_physical_memory() / 2^30,
+        :mem_free_GiB => Sys.free_physical_memory() / 2^30,
+        :cpu_name => Sys.CPU_NAME,
+        :cpu_threads => Sys.CPU_THREADS
+    )
 
     ############################################################################
     ###############################   RUN MLMC   ###############################
@@ -113,9 +121,9 @@ function run(experiment::MLMC_Experiment; kwargs...)
     # do warm-up run with very loose tolerance to take care of precompilation
     MultilevelEstimators.run(MLMC_estimator, 1)
 
-    # TODO timing
     # do actual run
     h = MultilevelEstimators.run(MLMC_estimator, experiment.ϵ)
+    info[:tstop] = now()
 
 
     ############################################################################
