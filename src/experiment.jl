@@ -25,7 +25,12 @@ struct MLMC_Experiment
     ### the current seed, the idea is to seed the generator with a
     ### random, but known number.
     ###
-    ### Concern: Does this reduce the quality of our random numbers?
+    ### CAUTION: Currently, results are not reproducible.
+    ### Initially, we generate the same random samples. But since the estimated
+    ### cost of those samples is based on runtime,
+    ### we cannot expect the same cost estimation. As such, the number of
+    ### samples on each level (and therefore the results) will differ between
+    ### runs. TODO: Fix by supplying a deterministic cost function.
     ###
     ### *: Due to updates of the underlying algorithms, the sequence of
     ###     random numbers generated from a given seed can change between
