@@ -19,4 +19,4 @@ L = 4
 qoi_fn = L2_squared
 
 e = MLMC_Experiment(p, qoi_fn, Uniform(-deviation, deviation), L, ϵ)
-run(e)
+result = run(e)

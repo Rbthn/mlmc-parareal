@@ -52,6 +52,7 @@ function run(experiment::MLMC_Experiment; kwargs...)
     #########################   COLLECT SYSTEM INFO   ##########################
     ############################################################################
     # TODO
+    info = Dict()
 
     ############################################################################
     ###############################   RUN MLMC   ###############################
@@ -93,8 +94,7 @@ function run(experiment::MLMC_Experiment; kwargs...)
         MultilevelEstimators.MC(), # Monte-Carlo sampling
         sample_function,    # (level, ζ) -> (ΔQ, Q)
         distributions,      # Vector of distributions for the different levels
-        folder=datadir(),
-        name=experiment.problem.name,
+        save=false,
         ###
         max_index_set_param=experiment.L,
         min_index_set_param=experiment.L,   # force the use of all levels
@@ -116,7 +116,13 @@ function run(experiment::MLMC_Experiment; kwargs...)
     ############################################################################
     #############################   SAVE RESULTS   #############################
     ############################################################################
-    # TODO
+    # inputs / fields of experiment
+    settings = Dict(fieldnames(MLMC_Experiment) .=> getfield.(Ref(experiment), fieldnames(MLMC_Experiment)))
 
-    return 0
+    # combine. Using strings here, as DrWatson does not like Symbols as keys.
+    d = Dict("settings" => settings, "info" => info, "history" => h[1])
+
+    #save with git commit hash (and patch if repo is dirty)
+    savename = "tmp.jld2"
+    return tagsave(datadir("simulations", savename), d, storepatch=true)
 end
