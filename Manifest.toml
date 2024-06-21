@@ -883,9 +883,7 @@ version = "0.2.4"
 
 [[deps.MultilevelEstimators]]
 deps = ["Dates", "DelimitedFiles", "Distributed", "JLD2", "LinearAlgebra", "Printf", "Random", "SpecialFunctions", "Statistics"]
-git-tree-sha1 = "0499055e8536e42a95aa62fba49e680b4e24e9c0"
-repo-rev = "master"
-repo-url = "https://github.com/PieterjanRobbe/MultilevelEstimators.jl"
+path = "dev/MultilevelEstimators.jl"
 uuid = "bc769cb7-f249-5bba-802a-80f19cb247ec"
 version = "0.1.1"
 
