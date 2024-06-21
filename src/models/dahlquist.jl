@@ -29,18 +29,6 @@ struct Dahlquist_Problem{T,U} <: MLMC_Problem{T,U}
     end
 end
 
-function solve(problem::Dahlquist_Problem, level, ζ)
-    l, L = level
-    if !problem.use_parareal || l != L
-        ### Don't use Parareal
-        dt = compute_timestep(problem, l)
-        p::ODEProblem = instantiate_problem(problem, ζ)
-        return DifferentialEquations.solve(p, Euler(), dt=dt)
-    else
-        ### TODO use Parareal
-    end
-end
-
 function instantiate_problem(problem::Dahlquist_Problem, ζ)
     function dahlquist_deriv!(du, u, ζ, t)
         σ = ζ[1]

@@ -27,11 +27,22 @@ abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 ###     - Compute timestep based on static information in the problem and current refinement level
 ###     - Instantiate an ODEProblem based on static information and current random sample
 ###     - solve resulting ODEProblem with explicit Euler and computed timestep
-function solve(problem::MLMC_Problem, level, ζ)
+function solve(problem::MLMC_Problem, level, ζ; use_parareal=false, integrator=ImplicitEuler(), kwargs...)
     l, L = level
-    dt = compute_timestep(problem, l)
-    p::ODEProblem = instantiate_problem(problem, ζ)
-    return DifferentialEquations.solve(p, Euler(), dt=dt)
+    if !use_parareal || l != L
+        # Don't use Parareal
+        dt = compute_timestep(problem, l)
+        p::ODEProblem = instantiate_problem(problem, ζ)
+        return DifferentialEquations.solve(
+            p,                  # problem
+            integrator,         # integrator
+            dt=dt,              # timestep
+            adaptive=false;     # disable adaptive timestepping to force dt
+            kwargs...
+        )
+    else
+        # TODO use Parareal
+    end
 end
 
 ### Default behavior:
