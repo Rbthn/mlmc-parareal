@@ -41,7 +41,14 @@ function solve(problem::MLMC_Problem, level, ζ; use_parareal=false, integrator=
             kwargs...
         )
     else
-        # TODO use Parareal
+        dt_fine = compute_timestep(problem, l)
+        dt_coarse = compute_timestep(problem, l - 1)
+
+        F = (t_1, t_2, u) -> propagator(problem, ζ, t_1, t_2, u, dt=dt_fine)
+        G = (t_1, t_2, u) -> propagator(problem, ζ, t_1, t_2, u, dt=dt_coarse)
+
+        u = solve_parareal(F, G, problem.t_0, problem.t_end, problem.u_0)
+        return u
     end
 end
 
