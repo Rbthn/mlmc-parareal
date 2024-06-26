@@ -18,7 +18,7 @@ struct MLMC_Experiment
     ϵ::Float64          # RMSE tolerance
     ### Related to Parareal
     use_parareal::Bool
-    #
+
     ### Distributions.jl allows us to sample random numbers
     ### according to a distribution, e.g. Uniform() or Normal().
     ### To make results reproducible*, we have to seed the PRNG
@@ -44,15 +44,17 @@ struct MLMC_Experiment
     end
 end
 
+"""
+    run(experiment; kwargs...)
+
+Run the MLMC experiments with settings supplied at construction time.
+Additional kwargs are passed to DifferentialEquations.solve
+"""
 function run(experiment::MLMC_Experiment; kwargs...)
-    """
-    Run the MLMC experiments with settings supplied at construction time.
-    Additional kwargs are passed to DifferentialEquations.solve
-    """
     ############################################################################
     ###########################   VALIDATE INPUTS   ############################
     ############################################################################
-    # TODO
+    # TODO split kwargs into parts for MLEstimator.Estimator, , solve, ...
 
     ############################################################################
     #########################   COLLECT SYSTEM INFO   ##########################
@@ -70,15 +72,21 @@ function run(experiment::MLMC_Experiment; kwargs...)
     ############################################################################
     ###############################   RUN MLMC   ###############################
     ############################################################################
+
+    """
+        sample_function(level::MultilevelEstimators.Level, ζ)
+
+    Compute QoI for given discretization level and next coarser level.
+    This function is passed to MultilevelEstimators.
+
+    # Inputs:
+    - `ζ`:      Realization of the random variable.
+    - `level`:  Discretization level.
+
+    # Outputs:
+    - `(ΔQ, Q)`, where `Q` is the QoI obtained from a solution at `level` and `ΔQ` is the difference to the QoI obtained from the solution at the previous level.
+    """
     function sample_function(level::MultilevelEstimators.Level, ζ)
-        """
-            This function is passed to MultilevelEstimators.
-            Input:
-                Realization ζ of the random variable
-                Level of discretization level
-            Output:
-                (ΔQ, Q), where Q is the QoI obtained from a solution at the current level and ΔQ is the difference to the QoI obtained from the solution at the previous level
-        """
         # MultilevelEstimators uses a multi-index. For MLMC, this index only has one entry.
         l = level[1]
 

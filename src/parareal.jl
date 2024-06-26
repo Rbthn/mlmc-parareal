@@ -5,6 +5,28 @@ using DifferentialEquations
 using LinearAlgebra
 #include(srcdir("problem.jl"))
 
+"""
+    solve_parareal(fine_integrator, coarse_integrator, t_0, t_end, u_0, num_intervals, jump_tol[, jump_norm])
+
+Perform the Parareal algorithm using `fine_integrator` and `coarse_integrator`
+for the fine and coarse iteration, respectively.
+
+# Inputs:
+- `fine_integrator`:      DEIntegrator with high resolution and high cost.
+- `coarse_integrator`:    DEIntegrator with lower resolution and lower cost.
+- `t_0`:                  Start time.
+- `t_end`:                End time.
+- `u_0`:                  Initial value at t=t_0
+- `num_intervals`:        Number of intervals (=threads) to use for Parareal.
+- `jump_tol`:             Tolerance on the discontinuity of the solution
+                            between intervals.
+- `jump_norm`:            Norm used to measure the discontinuities between
+                            intervals. Default: max. over all synchronization
+                            points, 2-norm at each synchronization point.
+
+# Outputs:
+TODO
+"""
 function solve_parareal(
     fine_integrator,
     coarse_integrator,
@@ -12,7 +34,7 @@ function solve_parareal(
     u_0,
     num_intervals,
     jump_tol,
-    jump_norm=(x) -> maximum(norm.(x, 2)) # max-norm over all sync points, 2-norm for difference at each sync point
+    jump_norm=(x) -> maximum(norm.(x, 2))
 )
     ###
     ### Initialization
@@ -87,8 +109,25 @@ function solve_parareal(
     all_u = reduce(vcat, [int.sol.u for int in fine_integrators])
 end
 
+"""
+    propagate!(integrator, t_1, t_2, u_1)
+
+Re-Initialize `integrator` to t=`t_1`, u=`u_1`
+and step to t=`t_2`.
+
+# Inputs:
+- `integrator`:           DEIntegrator to use. Is modified by a call to this
+                            function!
+- `t_1`:                  Start time.
+- `t_2`:                  End time.
+- `u_1`:                  Start value.
+
+# Outputs:
+    Solution is contained in `integrator`. For convenience, this function
+    also returns the corresponding ODESolution.
+"""
 function propagate!(integrator, t_1, t_2, u_1)
     reinit!(integrator, u_1, t0=t_1)
-    step!(integrator, t_2 - t_1, true) # step until t_2
-    return integrator.sol # return an ODESolution
+    step!(integrator, t_2 - t_1, true)
+    return integrator.sol
 end

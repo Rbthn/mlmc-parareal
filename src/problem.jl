@@ -22,10 +22,12 @@ using DifferentialEquations
 abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 
 include(srcdir("parareal.jl"))
-### Default behavior:
-###     - Compute timestep based on static information in the problem and current refinement level
-###     - Instantiate an ODEProblem based on static information and current random sample
-###     - solve resulting ODEProblem with explicit Euler and computed timestep
+
+"""
+    solve(problem, level, ζ[, integrator][, use_parareal][, parareal_intervals][, parareal_tolerance][, kwargs...])
+
+Solve a given `MLMC_Problem` with realization `ζ` and discretization level `level`.
+"""
 function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
     use_parareal=false,
     parareal_intervals=8,
@@ -71,9 +73,12 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
     end
 end
 
-### Default behavior:
-###     - Start with initial timestep Δt_0 given in problem at level 0
-###     - halve in each higher level
+"""
+    compute_timestep(problem, level)
+
+Given an initial timestep `problem.Δt_0` at level 0,
+compute the appropriate timestep for `level`.
+"""
 function compute_timestep(problem::MLMC_Problem, level)
     return problem.Δt_0 / 2^level
 end
@@ -81,17 +86,23 @@ end
 
 ### QoI functions for ODESolutions
 
-# End value
+"""
+    end_value(solution)
+
+Simple QoI function for testing purposes.
+Return the value at the final timestep in `solution`.
+"""
 function end_value(solution::ODESolution)
     return solution[end]
 end
 
-# (squared) L2 norm
-function L2_squared(solution::ODESolution, pointwise_norm2=(x) -> sum(x .^ 2))
-    """
-        Compute the square of the L2 norm of the solution.
-        For multidimensional input, specify the pointwise (squared) norm function. Default: Euclidian norm
-    """
-    pointwise_sq = pointwise_norm2.(solution[:]) # squared norm in each timestep
+"""
+    L2_squared(solution[, pointwise_norm2])
+
+Compute the square of the L2 norm of the solution.
+For multidimensional input, specify the pointwise (squared) norm function. Default: 2-norm.
+"""
+function L2_squared(solution::ODESolution, pointwise_norm2=(x) -> sum(abs2.(x)))
+    pointwise_sq = pointwise_norm2.(solution[:])
     return integrate(solution.t, pointwise_sq)
 end
