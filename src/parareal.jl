@@ -2,6 +2,7 @@ using DrWatson
 @quickactivate "MLMC_Parareal"
 
 using DifferentialEquations
+using LinearAlgebra
 #include(srcdir("problem.jl"))
 
 function solve_parareal(
@@ -9,7 +10,9 @@ function solve_parareal(
     coarse_integrator,
     t_0, t_end,
     u_0,
-    num_intervals, jump_tol
+    num_intervals,
+    jump_tol,
+    jump_norm=(x) -> maximum(norm.(x, 2)) # max-norm over all sync points, 2-norm for difference at each sync point
 )
     ###
     ### Initialization
@@ -69,15 +72,9 @@ function solve_parareal(
             sync_jumps[idx] = sol2.u[1] - sol1.u[end]
         end
 
-        # convergence: Check if jumps are below tolerance.
-        # TODO according to which norm(s)?
-        # sync_jumps[j] now contains the (vector-valued) jump
-        # from the fine solution on interval j to the fine solution on j+1
-        # Euclidian norm for sync_jumps[j]?
-        # Max. over all j below tolerance? Average?
 
-        sync_jumps_pointwise_norm = [sqrt(sum(abs2, jump)) for jump in sync_jumps]
-        sync_jumps_norm = maximum(sync_jumps_pointwise_norm)
+        # check if jumps are below tolerance according to given norm
+        sync_jumps_norm = jump_norm(sync_jumps)
         if sync_jumps_norm < jump_tol
             println("Tolerance reached after iteration k=$k")
             break
