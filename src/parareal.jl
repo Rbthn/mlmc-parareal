@@ -5,56 +5,93 @@ using DifferentialEquations
 #include(srcdir("problem.jl"))
 
 function solve_parareal(
-    F::Function,    # fine propagator
-    G::Function,    # coarse propagator
+    fine_integrator,
+    coarse_integrator,
     t_0, t_end,
     u_0,
-    num_intervals=8
+    num_intervals, jump_tol
 )
-    # initialize
-    t = range(t_0, t_end, length=num_intervals + 1) # parareal timesteps
-    # solution vector over timesteps
-    u = Array{eltype(u_0)}(undef, (size(u_0)..., num_intervals + 1))
-    # initial condition
-    u[:, 1] = u_0
+    ###
+    ### Initialization
+    ###
 
-    # hold results of coarse propagator from previous iteration
-    coarse_old = Array{eltype(u_0)}(undef, (size(u_0)..., num_intervals))
-    # hold results of fine propagator from current iteration
-    fine_results = Array{eltype(u_0)}(undef, (size(u_0)..., num_intervals))
+    # set parareal sync points
+    t = range(t_0, t_end, length=num_intervals + 1)
 
-    # initialize u with sequential coarse solutions
+    # values of solution at sync points
+    sync_values = Vector{typeof(u_0)}(undef, num_intervals + 1)
+    sync_values[1] = u_0
+
+    # jumps at sync points t_1 ... t_(end-1)
+    sync_jumps = Vector{typeof(u_0)}(undef, num_intervals - 1)
+
+    # values of coarse solution at sync points from last iteration.
+    # at index j, store G(t_j, t_j+1, u_j^(k-1))
+    coarse_old = Vector{typeof(u_0)}(undef, num_intervals)
+
+    # create num_intervals fine integrators to run in parallel
+    fine_integrators = [deepcopy(fine_integrator) for _ in range(1, num_intervals)]
+
+    # determine initial coarse solution
     for j in range(1, num_intervals)
-        coarse_result = G(t[j], t[j+1], u[:, j])
-        u[:, j+1] = coarse_result
-        coarse_old[:, j] = coarse_result
+        coarse_result = propagate!(
+            coarse_integrator, t[j], t[j+1], sync_values[j])
+
+        sync_values[j+1] = coarse_result[end]
+        coarse_old[j] = coarse_result[end]
     end
 
-    # further iterations
+    ###
+    ### Main loop
+    ###
+
     for k in range(1, num_intervals)
         # parallel
-        num_parallel = num_intervals - k + 1
+        # num_parallel = num_intervals - k + 1
         for j in range(k, num_intervals)
             # TODO compute in parallel on num_parallel cores
-            fine_results[:, j] = F(t[j], t[j+1], u[:, j])
+            propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j]) # result stored in the integrator
         end
+
         # sequential
         for j in range(k, num_intervals)
-            coarse_result = G(t[j], t[j+1], u[:, j])
-            u[:, j+1] = coarse_result + fine_results[:, j] - coarse_old[:, j]
-            coarse_old[:, j] = coarse_result
+            coarse_result = propagate!(
+                coarse_integrator, t[j], t[j+1], sync_values[j])
+
+            sync_values[j+1] = coarse_result[end] + fine_integrators[j].sol[end] - coarse_old[j]
+            coarse_old[j] = coarse_result[end]
         end
-        # TODO check convergence
+
+        # compute jumps at sync points
+        for idx in eachindex(sync_jumps)
+            sol1 = fine_integrators[idx].sol
+            sol2 = fine_integrators[idx+1].sol
+            sync_jumps[idx] = sol2.u[1] - sol1.u[end]
+        end
+
+        # convergence: Check if jumps are below tolerance.
+        # TODO according to which norm(s)?
+        # sync_jumps[j] now contains the (vector-valued) jump
+        # from the fine solution on interval j to the fine solution on j+1
+        # Euclidian norm for sync_jumps[j]?
+        # Max. over all j below tolerance? Average?
+
+        sync_jumps_pointwise_norm = [sqrt(sum(abs2, jump)) for jump in sync_jumps]
+        sync_jumps_norm = maximum(sync_jumps_pointwise_norm)
+        if sync_jumps_norm < jump_tol
+            println("Tolerance reached after iteration k=$k")
+            break
+        end
     end
 
-    return u
+    # TODO stitch together ODESolution.
+    # What to do at sync_points? Mean of left and right value? Keep both?
+    all_t = reduce(vcat, [int.sol.t for int in fine_integrators])
+    all_u = reduce(vcat, [int.sol.u for int in fine_integrators])
 end
 
-function propagator(problem::MLMC_Problem, ζ, t_1, t_2, u; dt)
-    p = instantiate_problem(problem, ζ)
-    int = init(p, dt=dt, save_everystep=false)
-    set_u!(int, u)
-    set_t!(int, t_1)
-    step!(int, t_2 - t_1, true) # step until t+dt and ensure that timestep is included
-    return int.u[:, end]
+function propagate!(integrator, t_1, t_2, u_1)
+    reinit!(integrator, u_1, t0=t_1)
+    step!(integrator, t_2 - t_1, true) # step until t_2
+    return integrator.sol # return an ODESolution
 end

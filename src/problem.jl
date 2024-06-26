@@ -3,7 +3,6 @@ using DrWatson
 
 using DifferentialEquations
 
-
 ### This type defines an MLMC Problem.
 ### Primary use: Objects of this type are passed to MLMC_Experiment,
 ### where solve(MLMC_Problem, level, ζ) is called.
@@ -22,32 +21,52 @@ using DifferentialEquations
 ###         for the return type of solve(::your_derived_type, level, ζ)
 abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 
-
+include(srcdir("parareal.jl"))
 ### Default behavior:
 ###     - Compute timestep based on static information in the problem and current refinement level
 ###     - Instantiate an ODEProblem based on static information and current random sample
 ###     - solve resulting ODEProblem with explicit Euler and computed timestep
-function solve(problem::MLMC_Problem, level, ζ; use_parareal=false, integrator=ImplicitEuler(), kwargs...)
+function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
+    use_parareal=false,
+    parareal_intervals=8,
+    parareal_tolerance=1e-4,
+    kwargs...)
     l, L = level
+    p::ODEProblem = instantiate_problem(problem, ζ)
     if !use_parareal || l != L
         # Don't use Parareal
         dt = compute_timestep(problem, l)
-        p::ODEProblem = instantiate_problem(problem, ζ)
         return DifferentialEquations.solve(
             p,                  # problem
-            integrator,         # integrator
+            integrator,         # timestepping algorithm
             dt=dt,              # timestep
             adaptive=false;     # disable adaptive timestepping to force dt
-            kwargs...
+            kwargs...           # additional keyword-args for solver
         )
     else
         dt_fine = compute_timestep(problem, l)
-        dt_coarse = compute_timestep(problem, l - 1)
+        dt_coarse = compute_timestep(problem, 0)
 
-        F = (t_1, t_2, u) -> propagator(problem, ζ, t_1, t_2, u, dt=dt_fine)
-        G = (t_1, t_2, u) -> propagator(problem, ζ, t_1, t_2, u, dt=dt_coarse)
+        int_fine = init(
+            p,                  # problem
+            integrator,         # timestepping algorithm
+            dt=dt_fine,         # timestep
+            adaptive=false;     # disable adaptive timestepping to force dt
+            kwargs...           # additional keyword-args for solver
+        )
+        int_coarse = init(
+            p,                  # problem
+            integrator,         # timestepping algorithm
+            dt=dt_coarse,       # timestep
+            adaptive=false;     # disable adaptive timestepping to force dt
+            kwargs...           # additional keyword-args for solver
+        )
 
-        u = solve_parareal(F, G, problem.t_0, problem.t_end, problem.u_0)
+        u = solve_parareal(int_fine, int_coarse,
+            problem.t_0, problem.t_end,
+            problem.u_0,
+            parareal_intervals, parareal_tolerance
+        )
         return u
     end
 end
