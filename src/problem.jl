@@ -92,8 +92,8 @@ end
 Simple QoI function for testing purposes.
 Return the value at the final timestep in `solution`.
 """
-function end_value(solution::ODESolution)
-    return solution[end]
+function end_value(solution)
+    return solution.u[end]
 end
 
 """
@@ -102,7 +102,7 @@ end
 Compute the square of the L2 norm of the solution.
 For multidimensional input, specify the pointwise (squared) norm function. Default: 2-norm.
 """
-function L2_squared(solution::ODESolution, pointwise_norm2=(x) -> sum(abs2.(x)))
-    pointwise_sq = pointwise_norm2.(solution[:])
+function L2_squared(solution, pointwise_norm2=(x) -> sum(abs2.(x)))
+    pointwise_sq = pointwise_norm2.(solution.u)
     return integrate(solution.t, pointwise_sq)
 end

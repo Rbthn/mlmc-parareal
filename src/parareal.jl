@@ -25,7 +25,10 @@ for the fine and coarse iteration, respectively.
                             points, 2-norm at each synchronization point.
 
 # Outputs:
-TODO
+named tuple with fields:
+- `u`:                    Solution values.
+- `t`:                    Timesteps.
+- `info`:                 Addtional solver information.
 """
 function solve_parareal(
     fine_integrator,
@@ -103,10 +106,14 @@ function solve_parareal(
 
     end
 
-    # TODO stitch together ODESolution.
-    # What to do at sync_points? Mean of left and right value? Keep both?
+    # We cannot return an ODESolution, since DifferentialEquations does not
+    # allow constructing an ODESolution from given data.
+    # To allow for uniform handling of the return type, we return a named tuple,
+    # with the fields u, t, and additional information.
+    # TODO how to handle duplicate values at sync points?
     all_t = reduce(vcat, [int.sol.t for int in fine_integrators])
     all_u = reduce(vcat, [int.sol.u for int in fine_integrators])
+    return (u=all_u, t=all_t, info=message)
 end
 
 """
