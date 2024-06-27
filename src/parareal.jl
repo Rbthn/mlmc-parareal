@@ -110,9 +110,15 @@ function solve_parareal(
     # allow constructing an ODESolution from given data.
     # To allow for uniform handling of the return type, we return a named tuple,
     # with the fields u, t, and additional information.
-    # TODO how to handle duplicate values at sync points?
-    all_t = reduce(vcat, [int.sol.t for int in fine_integrators])
-    all_u = reduce(vcat, [int.sol.u for int in fine_integrators])
+    # At the discontinuities, use the left solution.
+    # TODO is this correct?
+    all_t = t_0
+    all_u = [u_0]
+    for int in fine_integrators
+        all_t = vcat(all_t, int.sol.t[2:end])
+        all_u = vcat(all_u, int.sol.u[2:end])
+    end
+
     return (u=all_u, t=all_t, info=message)
 end
 
