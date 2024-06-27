@@ -48,7 +48,7 @@ function solve_parareal(
     sync_values[1] = u_0
 
     # jumps at sync points t_1 ... t_(end-1)
-    sync_jumps = Vector{typeof(u_0)}(undef, num_intervals - 1)
+    sync_jumps = Vector{typeof(u_0)}(undef, num_intervals)
 
     # values of coarse solution at sync points from last iteration.
     # at index j, store G(t_j, t_j+1, u_j^(k-1))
@@ -57,13 +57,16 @@ function solve_parareal(
     # create num_intervals fine integrators to run in parallel
     fine_integrators = [deepcopy(fine_integrator) for _ in range(1, num_intervals)]
 
+    # solver message
+    message = ""
+
     # determine initial coarse solution
     for j in range(1, num_intervals)
         coarse_result = propagate!(
             coarse_integrator, t[j], t[j+1], sync_values[j])
 
-        sync_values[j+1] = coarse_result[end]
-        coarse_old[j] = coarse_result[end]
+        sync_values[j+1] = coarse_result
+        coarse_old[j] = coarse_result
     end
 
     ###
@@ -73,8 +76,20 @@ function solve_parareal(
     for k in range(1, num_intervals)
         # parallel
         Threads.@threads for j in range(k, num_intervals)
-            propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
-            # result stored in the integrator
+            end_value = propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
+            # ϵ = u^k_j - F(t_j, t_j+1, u^k_j-1)
+            # sync value from last interation, fine solution from this iteration
+            sync_jumps[j] = sync_values[j+1] - end_value
+        end
+        # Due to Parareal exactness, the jumps at t_1...t_k-1 are zero.
+        # There is no need to compute these jumps in the loop above, we can just set them to zero.
+        map(idx -> fill!(sync_jumps[idx], 0), 1:k-1)
+
+        # convergence, if jumps are below tolerance according to given norm
+        sync_jumps_norm = jump_norm(sync_jumps)
+        if sync_jumps_norm < jump_tol
+            message = "Tolerance reached after iteration k=$k"
+            break
         end
 
         # sequential
@@ -82,24 +97,10 @@ function solve_parareal(
             coarse_result = propagate!(
                 coarse_integrator, t[j], t[j+1], sync_values[j])
 
-            sync_values[j+1] = coarse_result[end] + fine_integrators[j].sol[end] - coarse_old[j]
-            coarse_old[j] = coarse_result[end]
+            sync_values[j+1] = coarse_result + fine_integrators[j].u - coarse_old[j]
+            coarse_old[j] = coarse_result
         end
 
-        # compute jumps at sync points
-        for idx in eachindex(sync_jumps)
-            sol1 = fine_integrators[idx].sol
-            sol2 = fine_integrators[idx+1].sol
-            sync_jumps[idx] = sol2.u[1] - sol1.u[end]
-        end
-
-
-        # check if jumps are below tolerance according to given norm
-        sync_jumps_norm = jump_norm(sync_jumps)
-        if sync_jumps_norm < jump_tol
-            println("Tolerance reached after iteration k=$k")
-            break
-        end
     end
 
     # TODO stitch together ODESolution.
@@ -123,10 +124,10 @@ and step to t=`t_2`.
 
 # Outputs:
     Solution is contained in `integrator`. For convenience, this function
-    also returns the corresponding ODESolution.
+    also returns the computed value u at t=`t_2`
 """
 function propagate!(integrator, t_1, t_2, u_1)
     reinit!(integrator, u_1, t0=t_1)
     step!(integrator, t_2 - t_1, true)
-    return integrator.sol
+    return copy(integrator.u)
 end
