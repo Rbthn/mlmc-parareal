@@ -72,10 +72,9 @@ function solve_parareal(
 
     for k in range(1, num_intervals)
         # parallel
-        # num_parallel = num_intervals - k + 1
-        for j in range(k, num_intervals)
-            # TODO compute in parallel on num_parallel cores
-            propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j]) # result stored in the integrator
+        Threads.@threads for j in range(k, num_intervals)
+            propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
+            # result stored in the integrator
         end
 
         # sequential
