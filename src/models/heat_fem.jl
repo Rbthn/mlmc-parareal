@@ -2,6 +2,7 @@ using DrWatson
 @quickactivate "MLMC_Parareal"
 
 using DifferentialEquations
+using SparseArrays
 using NumericalIntegration
 include(srcdir("problem.jl"))
 
@@ -36,8 +37,8 @@ end
 function instantiate_problem(problem::Heat_Problem, ζ)
     n = length(problem.xi)
 
-    M = zeros(n, n)
-    K = zeros(n, n)
+    M = spzeros(n, n)
+    K = spzeros(n, n)
     r = zeros(n)
     for i in range(1, n - 1)
         Δx_i = problem.xi[i+1] - problem.xi[i]
