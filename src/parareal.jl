@@ -44,6 +44,10 @@ function solve_parareal(
     ### Initialization
     ###
 
+    # stats
+    timesteps_total = 0 # total timesteps, proxy for power
+    timesteps_seq = 0   # sequential timesteps, proxy for WCT with inf. #cores
+
     # set parareal sync points
     t = range(t_0, t_end, length=num_intervals + 1)
 
@@ -71,6 +75,11 @@ function solve_parareal(
 
         sync_values[j+1] = coarse_result
         coarse_old[j] = coarse_result
+
+        # count timesteps
+        steps = length(coarse_integrator.sol.t) - 1
+        timesteps_total += steps
+        timesteps_seq += steps
     end
 
     ###
@@ -85,6 +94,11 @@ function solve_parareal(
             # sync value from last interation, fine solution from this iteration
             sync_jumps[j] = sync_values[j+1] - end_value
         end
+        # count timesteps outside of parallel loop to avoid race condition
+        steps = length(fine_integrators[1].sol.t) - 1
+        timesteps_total += (num_intervals - k + 1) * steps
+        timesteps_seq += steps
+
         # Due to Parareal exactness, the jumps at t_1...t_k-1 are zero.
         # There is no need to compute these jumps in the loop above, we can just set them to zero.
         map(idx -> fill!(sync_jumps[idx], 0), 1:k-1)
@@ -103,8 +117,12 @@ function solve_parareal(
 
             sync_values[j+1] = coarse_result + fine_integrators[j].u - coarse_old[j]
             coarse_old[j] = coarse_result
-        end
 
+            # count timesteps
+            steps = length(coarse_integrator.sol.t) - 1
+            timesteps_total += steps
+            timesteps_seq += steps
+        end
     end
 
     # We cannot return an ODESolution, since DifferentialEquations does not
@@ -120,7 +138,8 @@ function solve_parareal(
         all_u = vcat(all_u, int.sol.u[2:end])
     end
 
-    return (u=all_u, t=all_t, info=message)
+    return (u=all_u, t=all_t, info=message,
+        timesteps=(timesteps_total, timesteps_seq))
 end
 
 """
