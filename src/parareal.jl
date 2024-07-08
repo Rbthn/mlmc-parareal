@@ -37,6 +37,7 @@ function solve_parareal(
     u_0,
     num_intervals,
     jump_tol,
+    max_iterations=num_intervals,
     jump_norm=(x) -> maximum(norm.(x, 2))
 )
     ###
@@ -76,7 +77,7 @@ function solve_parareal(
     ### Main loop
     ###
 
-    for k in range(1, num_intervals)
+    for k in range(1, min(max_iterations, num_intervals))
         # parallel
         Threads.@threads for j in range(k, num_intervals)
             end_value = propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
