@@ -47,6 +47,9 @@ function solve_parareal(
     # stats
     timesteps_total = 0 # total timesteps, proxy for power
     timesteps_seq = 0   # sequential timesteps, proxy for WCT with inf. #cores
+    retcode = nothing
+    k = 0               # iteration counter
+    errors = fill(Inf, num_intervals) # Parareal errors after each iteration
 
     # set parareal sync points
     t = range(t_0, t_end, length=num_intervals + 1)
@@ -64,9 +67,6 @@ function solve_parareal(
 
     # create num_intervals fine integrators to run in parallel
     fine_integrators = [deepcopy(fine_integrator) for _ in range(1, num_intervals)]
-
-    # solver message
-    message = ""
 
     # determine initial coarse solution
     for j in range(1, num_intervals)
@@ -86,7 +86,13 @@ function solve_parareal(
     ### Main loop
     ###
 
-    for k in range(1, min(max_iterations, num_intervals))
+    for outer k in range(1, num_intervals)
+        if k > max_iterations
+            retcode = :MaxIter
+            k -= 1  # don't count current iteration
+            break
+        end
+
         # parallel
         Threads.@threads for j in range(k, num_intervals)
             end_value = propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
@@ -104,9 +110,9 @@ function solve_parareal(
         map(idx -> fill!(sync_jumps[idx], 0), 1:k-1)
 
         # convergence, if jumps are below tolerance according to given norm
-        sync_jumps_norm = jump_norm(sync_jumps)
-        if sync_jumps_norm < jump_tol
-            message = "Tolerance reached after iteration k=$k"
+        errors[k] = jump_norm(sync_jumps)
+        if errors[k] < jump_tol
+            retcode = :Success
             break
         end
 
@@ -138,8 +144,14 @@ function solve_parareal(
         all_u = vcat(all_u, int.sol.u[2:end])
     end
 
-    return (u=all_u, t=all_t, info=message,
-        timesteps=(timesteps_total, timesteps_seq))
+    return (u=all_u, t=all_t,
+        stats=(
+            timesteps=(timesteps_total, timesteps_seq),
+            iterations=k,
+            error=errors
+        ),
+        retcode=retcode
+    )
 end
 
 """

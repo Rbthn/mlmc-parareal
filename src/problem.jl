@@ -39,13 +39,14 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
     if !use_parareal || l != L
         # Don't use Parareal
         dt = compute_timestep(problem, l)
-        return DifferentialEquations.solve(
+        sol = DifferentialEquations.solve(
             p,                  # problem
             integrator,         # timestepping algorithm
             dt=dt,              # timestep
             adaptive=false;     # disable adaptive timestepping to force dt
             kwargs...           # additional keyword-args for solver
         )
+        return sol
     else
         dt_fine = compute_timestep(problem, l)
         dt_coarse = compute_timestep(problem, 0)
@@ -65,12 +66,12 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
             kwargs...           # additional keyword-args for solver
         )
 
-        u = solve_parareal(int_fine, int_coarse,
+        sol = solve_parareal(int_fine, int_coarse,
             problem.t_0, problem.t_end,
             problem.u_0,
             parareal_intervals, parareal_tolerance, parareal_maxit
         )
-        return u
+        return sol
     end
 end
 
