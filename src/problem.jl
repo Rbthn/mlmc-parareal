@@ -30,10 +30,9 @@ Solve a given `MLMC_Problem` with realization `ζ` and discretization level `lev
 """
 function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
     use_parareal=false,
-    parareal_intervals=8,
-    parareal_tolerance=1e-4,
-    parareal_maxit=parareal_intervals,
+    parareal_args::Union{Parareal_Args,Nothing}=nothing,
     kwargs...)
+
     l, L = level
     p::ODEProblem = instantiate_problem(problem, ζ)
     if !use_parareal || l != L
@@ -69,7 +68,7 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
         sol = solve_parareal(int_fine, int_coarse,
             problem.t_0, problem.t_end,
             problem.u_0,
-            parareal_intervals, parareal_tolerance, parareal_maxit
+            parareal_args
         )
         return sol
     end

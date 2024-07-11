@@ -3,7 +3,16 @@ using DrWatson
 
 using DifferentialEquations
 using LinearAlgebra
+using Parameters
 #include(srcdir("problem.jl"))
+
+@with_kw struct Parareal_Args
+    num_intervals::Int
+    max_iterations::Int = num_intervals
+    tolerance::Real = 1e-3
+    jump_norm::Function = (x) -> maximum(norm.(x, 2)) # computes error from jump in u
+end
+
 
 """
     solve_parareal(fine_integrator, coarse_integrator, t_0, t_end, u_0, num_intervals, jump_tol[, jump_norm])
@@ -33,16 +42,13 @@ named tuple with fields:
 function solve_parareal(
     fine_integrator,
     coarse_integrator,
-    t_0, t_end,
-    u_0,
-    num_intervals,
-    jump_tol,
-    max_iterations=num_intervals,
-    jump_norm=(x) -> maximum(norm.(x, 2))
-)
+    t_0, t_end, u_0,
+    args::Parareal_Args)
+
     ###
     ### Initialization
     ###
+    @unpack num_intervals, max_iterations, tolerance, jump_norm = args
 
     # stats
     timesteps_total = 0 # total timesteps, proxy for power
@@ -111,7 +117,7 @@ function solve_parareal(
 
         # convergence, if jumps are below tolerance according to given norm
         errors[k] = jump_norm(sync_jumps)
-        if errors[k] < jump_tol
+        if errors[k] < tolerance
             retcode = :Success
             break
         end
