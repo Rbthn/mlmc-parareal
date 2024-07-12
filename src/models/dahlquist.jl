@@ -3,11 +3,12 @@ using DrWatson
 
 using DifferentialEquations
 using NumericalIntegration
+using StaticArrays
 include(srcdir("problem.jl"))
 
-struct Dahlquist_Problem{T,U} <: MLMC_Problem{T,U}
+struct Dahlquist_Problem{T,U,S} <: MLMC_Problem{T,U} where {S}
 
-    u_0::Vector{U}  # initial value
+    u_0::SizedVector{S,U}# initial value
     t_0::T          # start time
     t_end::T        # stop time
     λ               # factor in dahlquist equation
@@ -15,16 +16,16 @@ struct Dahlquist_Problem{T,U} <: MLMC_Problem{T,U}
     name::String
 
     # define internal constructor to check inputs
-    function Dahlquist_Problem(u_0::Vector{U}, t_0::T, t_end::T, λ, Δt_0) where {T<:AbstractFloat,U<:AbstractFloat}
+    function Dahlquist_Problem(u_0::SizedVector{S,U}, t_0::T, t_end::T, λ, Δt_0) where {T<:AbstractFloat,U<:AbstractFloat,S}
         # validate time interval
         @assert t_0 <= t_end
 
-        return new{T,U}(u_0, t_0, t_end, λ, Δt_0, "Dahlquist")
+        return new{T,U,S}(u_0, t_0, t_end, λ, Δt_0, "Dahlquist")
     end
 
     # convert scalar unknown to 1D vector to please DifferentialEquations
     function Dahlquist_Problem(u_0::U, t_0::T, t_end::T, λ, Δt_0) where {T<:AbstractFloat,U<:AbstractFloat}
-        return Dahlquist_Problem([u_0], t_0, t_end, λ, Δt_0)
+        return Dahlquist_Problem(SizedVector(u_0), t_0, t_end, λ, Δt_0)
     end
 end
 
@@ -32,6 +33,7 @@ function instantiate_problem(problem::Dahlquist_Problem, ζ)
     function dahlquist_deriv!(du, u, ζ, t)
         σ = ζ[1]
         du[:] .= problem.λ * (1 + σ) .* u
+        return nothing
     end
 
     # Construct ODEProblem
