@@ -6,6 +6,7 @@ include(srcdir("models/dahlquist.jl"))
 
 using Plots
 using LaTeXStrings
+using BenchmarkTools
 
 u_0 = 1.0
 t_0 = 0.0
@@ -15,7 +16,8 @@ t_end = 1.0
 p = Dahlquist_Problem(u_0, t_0, t_end, λ, Δt_0)
 
 N = 10
-L = 5
+L = 15
+benchmark_time = 30
 
 ### Plot number of timesteps over iteration number k
 plt = plot(xlabel=L"iteration $k$",
@@ -24,16 +26,17 @@ plt = plot(xlabel=L"iteration $k$",
 )
 colors = palette(:viridis, 3)
 
-sol_1 = solve(p, [L, L], 0, use_parareal=false)
+println("Reference solution:")
+sol_1 = @btime solve($p, [$L, $L], 0, use_parareal=false) seconds = benchmark_time
 ts_parareal = zeros(2, N)
 for k in range(1, N)
 
     # use zero tolerance to force iteration until i=k
     parareal_args = Parareal_Args(
         num_intervals=10, tolerance=0, max_iterations=k)
-
-
-    sol_2 = solve(p, [L, L], 0, use_parareal=true; parareal_args)
+    println("====================================")
+    println("Parareal, k=$k:")
+    sol_2 = @btime solve($p, [$L, $L], 0, use_parareal=true, parareal_args=$parareal_args) seconds = benchmark_time
 
     ### compare number of timesteps (total, sequential)
 
