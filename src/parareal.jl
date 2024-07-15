@@ -3,6 +3,7 @@ using DrWatson
 
 using DifferentialEquations
 using LinearAlgebra
+using StaticArrays
 using Parameters
 #include(srcdir("problem.jl"))
 
@@ -61,15 +62,15 @@ function solve_parareal(
     t = range(t_0, t_end, length=num_intervals + 1)
 
     # values of solution at sync points
-    sync_values = Vector{typeof(u_0)}(undef, num_intervals + 1)
+    sync_values = SizedVector{num_intervals + 1,typeof(u_0)}(undef)
     sync_values[1] = u_0
 
     # jumps at sync points t_1 ... t_(end-1)
-    sync_jumps = Vector{typeof(u_0)}(undef, num_intervals)
+    sync_jumps = SizedVector{num_intervals,typeof(u_0)}(undef)
 
     # values of coarse solution at sync points from last iteration.
     # at index j, store G(t_j, t_j+1, u_j^(k-1))
-    coarse_old = Vector{typeof(u_0)}(undef, num_intervals)
+    coarse_old = SizedVector{num_intervals,typeof(u_0)}(undef)
 
     # create num_intervals fine integrators to run in parallel
     fine_integrators = [deepcopy(fine_integrator) for _ in range(1, num_intervals)]
@@ -113,7 +114,9 @@ function solve_parareal(
 
         # Due to Parareal exactness, the jumps at t_1...t_k-1 are zero.
         # There is no need to compute these jumps in the loop above, we can just set them to zero.
-        map(idx -> fill!(sync_jumps[idx], 0), 1:k-1)
+        for idx in range(1, k - 1)
+            sync_jumps[idx] = zero(sync_jumps[idx])
+        end
 
         # convergence, if jumps are below tolerance according to given norm
         errors[k] = jump_norm(sync_jumps)
@@ -143,11 +146,23 @@ function solve_parareal(
     # with the fields u, t, and additional information.
     # At the discontinuities, use the left solution.
     # TODO is this correct?
-    all_t = t_0
-    all_u = [u_0]
-    for int in fine_integrators
-        all_t = vcat(all_t, int.sol.t[2:end])
-        all_u = vcat(all_u, int.sol.u[2:end])
+    solution_sizes = map(integrator -> length(integrator.sol.t) - 1,
+        fine_integrators)
+    total_size = sum(solution_sizes) + 1
+
+    all_t = SizedVector{total_size,typeof(t_0)}(undef)
+    all_t[1] = t_0
+    all_u = SizedVector{total_size,typeof(u_0)}(undef)
+    all_u[1] = u_0
+    idx = 1
+
+    for i in range(1, num_intervals)
+        size = solution_sizes[i]
+        int = fine_integrators[i]
+        all_t[idx+1:idx+size] = int.sol.t[2:end]
+        all_u[idx+1:idx+size] = int.sol.u[2:end]
+
+        idx += size
     end
 
     return (u=all_u, t=all_t,
@@ -180,5 +195,5 @@ and step to t=`t_2`.
 function propagate!(integrator, t_1, t_2, u_1)
     reinit!(integrator, u_1, t0=t_1)
     step!(integrator, t_2 - t_1, true)
-    return copy(integrator.u)
+    return integrator.sol.u[end]
 end
