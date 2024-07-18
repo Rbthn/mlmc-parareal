@@ -1,10 +1,6 @@
-using DrWatson
-@quickactivate "MLMC_Parareal"
-
 using DifferentialEquations
 using SparseArrays
 using NumericalIntegration
-include(srcdir("problem.jl"))
 
 struct Heat_Problem{T,U} <: MLMC_Problem{T,U}
 

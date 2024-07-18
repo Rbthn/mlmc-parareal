@@ -1,10 +1,6 @@
-using DrWatson
-@quickactivate "MLMC_Parareal"
-
 using DifferentialEquations
 using NumericalIntegration
 using StaticArrays
-include(srcdir("problem.jl"))
 
 struct Dahlquist_Problem{T,U,S} <: MLMC_Problem{T,U} where {S}
 

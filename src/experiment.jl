@@ -1,10 +1,9 @@
-using DrWatson
-@quickactivate "MLMC_Parareal"
-
 using Dates
 using Random
 using MultilevelEstimators
-include(srcdir("problem.jl"))
+
+# required to overload run for MLMC_Experiment
+import Base: run
 
 struct MLMC_Experiment
     ### Related to discretization of the problem
@@ -151,7 +150,5 @@ function run(experiment::MLMC_Experiment; kwargs...)
     # combine. Using strings here, as DrWatson does not like Symbols as keys.
     d = Dict("settings" => settings, "info" => info, "history" => h[1])
 
-    #save with git commit hash (and patch if repo is dirty)
-    savename = "tmp.jld2"
-    return tagsave(datadir("simulations", savename), d, storepatch=true)
+    return d
 end

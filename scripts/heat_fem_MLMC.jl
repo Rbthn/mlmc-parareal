@@ -1,9 +1,5 @@
 using DrWatson
-@quickactivate "MLMC_Parareal"
-
-include(srcdir("experiment.jl"))
-include(srcdir("problem.jl"))
-include(srcdir("models/heat_fem.jl"))
+@quickactivate :MLMC_Parareal
 
 n = 11
 x = range(0.0, 1.0, n)

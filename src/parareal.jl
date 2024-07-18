@@ -1,11 +1,7 @@
-using DrWatson
-@quickactivate "MLMC_Parareal"
-
 using DifferentialEquations
 using LinearAlgebra
 using StaticArrays
 using Parameters
-#include(srcdir("problem.jl"))
 
 @with_kw struct Parareal_Args
     num_intervals::Int

@@ -1,9 +1,6 @@
 using DrWatson
-@quickactivate "MLMC_Parareal"
+@quickactivate :MLMC_Parareal
 
-include(srcdir("experiment.jl"))
-include(srcdir("problem.jl"))
-include(srcdir("models/dahlquist.jl"))
 
 u_0 = 1.0
 t_0 = 0.0

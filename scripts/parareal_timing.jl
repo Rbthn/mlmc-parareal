@@ -1,8 +1,5 @@
 using DrWatson
-@quickactivate "MLMC_Parareal"
-
-include(srcdir("problem.jl"))
-include(srcdir("models/dahlquist.jl"))
+@quickactivate :MLMC_Parareal
 
 using Plots
 using LaTeXStrings

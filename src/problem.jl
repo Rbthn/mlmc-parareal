@@ -1,6 +1,3 @@
-using DrWatson
-@quickactivate "MLMC_Parareal"
-
 using DifferentialEquations
 
 ### This type defines an MLMC Problem.
@@ -20,8 +17,6 @@ using DifferentialEquations
 ###         of an ODEProblem. If you need another QoI function, implement it
 ###         for the return type of solve(::your_derived_type, level, ζ)
 abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
-
-include(srcdir("parareal.jl"))
 
 """
     solve(problem, level, ζ[, integrator][, use_parareal][, parareal_intervals][, parareal_tolerance][, kwargs...])
