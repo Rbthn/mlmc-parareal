@@ -18,6 +18,7 @@ struct MLMC_Experiment
     ϵ::Float64          # RMSE tolerance
     ### Related to Parareal
     use_parareal::Bool
+    parareal_args::Union{Parareal_Args,Nothing}
 
     ### Distributions.jl allows us to sample random numbers
     ### according to a distribution, e.g. Uniform() or Normal().
@@ -37,10 +38,11 @@ struct MLMC_Experiment
     ###     random numbers generated from a given seed can change between
     ###     Julia (minor) version updates.
     ###     Also see https://docs.julialang.org/en/v1/stdlib/Random/#Reproducibility
-    function MLMC_Experiment(problem::MLMC_Problem, qoi::Function, dist=Uniform(0.0, 1.0), L=2, ϵ=1e-3; seed=rand(UInt), use_parareal=false)
+    function MLMC_Experiment(problem::MLMC_Problem, qoi::Function, dist=Uniform(0.0, 1.0), L=2, ϵ=1e-3; seed=rand(UInt),
+        use_parareal=false, parareal_args::Union{Parareal_Args,Nothing}=nothing)
         # Seed PRNG
         Random.seed!(seed)
-        return new(problem, qoi, seed, dist, L, ϵ, use_parareal)
+        return new(problem, qoi, seed, dist, L, ϵ, use_parareal, parareal_args)
     end
 end
 
@@ -54,7 +56,9 @@ function run(experiment::MLMC_Experiment; kwargs...)
     ############################################################################
     ###########################   VALIDATE INPUTS   ############################
     ############################################################################
-    # TODO split kwargs into parts for MLEstimator.Estimator, , solve, ...
+    if experiment.use_parareal
+        @assert experiment.parareal_args isa Parareal_Args
+    end
 
     ############################################################################
     #########################   COLLECT SYSTEM INFO   ##########################
@@ -91,7 +95,9 @@ function run(experiment::MLMC_Experiment; kwargs...)
         l = level[1]
 
         # solve given sample (defined by ζ) on the current level
-        sol_current_l = solve(experiment.problem, (l, experiment.L), ζ, use_parareal=experiment.use_parareal; kwargs...)
+        sol_current_l = solve(experiment.problem, (l, experiment.L), ζ,
+            use_parareal=experiment.use_parareal,
+            parareal_args=experiment.parareal_args; kwargs...)
         # compute corresponding QoI
         qoi_current_l = experiment.qoi(sol_current_l)
 
@@ -99,7 +105,9 @@ function run(experiment::MLMC_Experiment; kwargs...)
             return qoi_current_l, qoi_current_l
         end
         # solve given sample one level lower
-        sol_last_l = solve(experiment.problem, (l - 1, experiment.L), ζ, use_parareal=experiment.use_parareal; kwargs...)
+        sol_last_l = solve(experiment.problem, (l - 1, experiment.L), ζ,
+            use_parareal=experiment.use_parareal,
+            parareal_args=experiment.parareal_args; kwargs...)
         # compute QoI
         qoi_last_l = experiment.qoi(sol_last_l)
         qoi_diff = qoi_current_l - qoi_last_l
