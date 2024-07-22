@@ -1,9 +1,10 @@
 using DrWatson
 @quickactivate :MLMC_Parareal
 
-using Plots
-using LaTeXStrings
 using BenchmarkTools
+using Plots, LaTeXStrings
+gr()
+
 
 u_0 = 1.0
 t_0 = 0.0
@@ -18,8 +19,13 @@ benchmark_time = 30
 
 ### Plot number of timesteps over iteration number k
 plt = plot(xlabel=L"iteration $k$",
+    xticks=1:N,
     ylabel="number of timesteps",
-    title="Theoretical timing of the Parareal algorithm"
+    yaxis=:log,
+    ylim=(1e4, 3e6),
+    minorgrid=:on,
+    legend=:bottomright
+    #title="total and sequential number of timesteps over Parareal iterations"
 )
 colors = palette(:viridis, 3)
 
@@ -42,7 +48,12 @@ for k in range(1, N)
 end
 
 hline!(plt, [sol_1.stats.naccept], label="reference solution", linestyle=:dash, color=:black)
-scatter!(plt, ts_parareal[1, :], label="total timesteps", color=colors[1])
-scatter!(plt, ts_parareal[2, :], label="sequential timesteps", color=colors[2])
+scatter!(plt, ts_parareal[1, :], label="total", color=colors[1])
+scatter!(plt, ts_parareal[2, :], label="sequential", color=colors[2])
+
+wsave(plotsdir(savename(
+        "parareal_timing",
+        (problem=p.name, level=L, K=N),
+        "pdf")), plt)
 
 print("done")
