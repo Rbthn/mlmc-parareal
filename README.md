@@ -1,30 +1,18 @@
 # MLMC_Parareal
 
-This code base is using the [Julia Language](https://julialang.org/) and
-[DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
-to make a reproducible scientific project named
-> MLMC_Parareal
+This code is intended to demonstrate a reduction of the time bottleneck
+when performing a Multilevel Monte Carlo simulation in a parallel computing environment
+using the Parareal algorithm.
+It uses the [Julia Language](https://julialang.org/) and (among others), the package [MultilevelEstimators.jl](https://github.com/PieterjanRobbe/MultilevelEstimators.jl/)
 
-It is authored by Robert Hahn.
+### Getting started
+- To clone this repository including its submodules, use
 
-To (locally) reproduce this project, do the following:
+   `git clone --recurse-submodules <URL>`
+- If you already cloned the repository, you can populate the submodules via
 
-0. Download this code base. Notice that raw data are typically not included in the
-   git-history and may need to be downloaded independently.
-1. Open a Julia console and do:
-   ```
-   julia> using Pkg
-   julia> Pkg.add("DrWatson") # install globally, for using `quickactivate`
-   julia> Pkg.activate("path/to/this/project")
-   julia> Pkg.instantiate()
-   ```
+   `git submodule update --init --recursive`
 
-This will install all necessary packages for you to be able to run the scripts and
-everything should work out of the box, including correctly finding local paths.
-
-You may notice that most scripts start with the commands:
-```julia
-using DrWatson
-@quickactivate "MLMC_Parareal"
-```
-which auto-activate the project and enable local path handling from DrWatson.
+### Examples
+- Models are defined in [src/models/](src/models/)
+- To reproduce numerical test cases, see [scripts/](scripts/)
