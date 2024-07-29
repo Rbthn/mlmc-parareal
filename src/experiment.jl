@@ -94,9 +94,10 @@ function run(experiment::MLMC_Experiment; kwargs...)
         l = level[1]
 
         # solve given sample (defined by ζ) on the current level
-        sol_current_l = solve(experiment.problem, (l, experiment.L), ζ,
-            use_parareal=experiment.use_parareal,
-            parareal_args=experiment.parareal_args; kwargs...)
+        sol_current_l, timesteps_current =
+            solve(experiment.problem, (l, experiment.L), ζ,
+                use_parareal=experiment.use_parareal,
+                parareal_args=experiment.parareal_args; kwargs...)
         # compute corresponding QoI
         qoi_current_l = experiment.qoi(sol_current_l)
 
@@ -104,9 +105,10 @@ function run(experiment::MLMC_Experiment; kwargs...)
             return qoi_current_l, qoi_current_l
         end
         # solve given sample one level lower
-        sol_last_l = solve(experiment.problem, (l - 1, experiment.L), ζ,
-            use_parareal=experiment.use_parareal,
-            parareal_args=experiment.parareal_args; kwargs...)
+        sol_last_l, timesteps_last =
+            solve(experiment.problem, (l - 1, experiment.L), ζ,
+                use_parareal=experiment.use_parareal,
+                parareal_args=experiment.parareal_args; kwargs...)
         # compute QoI
         qoi_last_l = experiment.qoi(sol_last_l)
         qoi_diff = qoi_current_l - qoi_last_l

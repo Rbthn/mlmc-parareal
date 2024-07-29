@@ -163,7 +163,7 @@ function solve_parareal(
 
     return (u=all_u, t=all_t,
         stats=(
-            timesteps=(timesteps_total, timesteps_seq),
+            timesteps=[timesteps_total, timesteps_seq],
             iterations=k,
             error=errors
         ),

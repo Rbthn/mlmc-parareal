@@ -21,7 +21,7 @@ abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 """
     solve(problem, level, ζ[, integrator][, use_parareal][, parareal_intervals][, parareal_tolerance][, kwargs...])
 
-Solve a given `MLMC_Problem` with realization `ζ` and discretization level `level`.
+Solve a given `MLMC_Problem` with realization `ζ` and discretization level `level`. Return solution and (total timesteps, sequential timesteps)
 """
 function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
     use_parareal=false,
@@ -40,7 +40,8 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
             adaptive=false;     # disable adaptive timestepping to force dt
             kwargs...           # additional keyword-args for solver
         )
-        return sol
+        timesteps = sol.stats.naccept
+        return sol, [timesteps, timesteps]
     else
         dt_fine = compute_timestep(problem, l)
         dt_coarse = compute_timestep(problem, 0)
@@ -60,12 +61,12 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
             kwargs...           # additional keyword-args for solver
         )
 
-        sol = solve_parareal(int_fine, int_coarse,
+        sol = solve_parareal(fine_integrators, int_coarse,
             problem.t_0, problem.t_end,
             problem.u_0,
             parareal_args
         )
-        return sol
+        return sol, sol.stats.timesteps
     end
 end
 
