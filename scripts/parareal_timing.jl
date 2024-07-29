@@ -17,7 +17,7 @@ N = 10
 L = 15
 benchmark_time = 30
 
-sol_1 = solve(p, [L, L], 0, use_parareal=false)
+sol_1, steps_1 = solve(p, [L, L], 0, use_parareal=false)
 bench_1 = @benchmark solve($p, [$L, $L], 0, use_parareal=false) seconds = benchmark_time
 
 ts_parareal = zeros(2, N)
@@ -27,13 +27,13 @@ for k in range(1, N)
     # use zero tolerance to force iteration until i=k
     parareal_args = Parareal_Args(
         num_intervals=10, tolerance=0, max_iterations=k)
-    sol_2 = solve(p, [L, L], 0, use_parareal=true, parareal_args=parareal_args)
+    sol_2, steps_2 = solve(p, [L, L], 0, use_parareal=true, parareal_args=parareal_args)
     bench_2 = @benchmark solve($p, [$L, $L], 0, use_parareal=true, parareal_args=$parareal_args) seconds = benchmark_time
 
     ### compare number of timesteps (total, sequential)
 
     # seq. and total timesteps are equal for purely sequential solution
-    ts_parareal[:, k] .= sol_2.stats.timesteps
+    ts_parareal[:, k] .= steps_2
     actual_parareal[k] = minimum(bench_2.times)
 end
 
@@ -48,7 +48,7 @@ plt = plot(xlabel=L"iteration $k$",
 colors = palette(:viridis, 3)
 
 # plot timesteps
-reference_ts = sol_1.stats.naccept
+reference_ts = steps_1[1]
 hline!(plt, [reference_ts], label="reference solution", linestyle=:dash, color=:black)
 scatter!(plt, ts_parareal[1, :], label="total timesteps", color=colors[1])
 scatter!(plt, ts_parareal[2, :], label="sequential timesteps", color=colors[2])
