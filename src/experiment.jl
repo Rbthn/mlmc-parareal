@@ -1,6 +1,7 @@
 using Dates
 using Random
 using MultilevelEstimators
+using StaticArrays
 
 # required to overload run for MLMC_Experiment
 import Base: run
@@ -72,6 +73,12 @@ function run(experiment::MLMC_Experiment; kwargs...)
         :cpu_threads => Sys.CPU_THREADS
     )
 
+    # not thread safe! TODO use atomics when splitting samples across cores
+    # all timesteps to evaluate samples associated with level l. This includes solves for l and l-1
+    total_timesteps = zeros(SizedVector{experiment.L + 1,Int})
+    sequential_timesteps = zeros(SizedVector{experiment.L + 1,Int})
+
+
     ############################################################################
     ###############################   RUN MLMC   ###############################
     ############################################################################
@@ -102,6 +109,9 @@ function run(experiment::MLMC_Experiment; kwargs...)
         qoi_current_l = experiment.qoi(sol_current_l)
 
         if l == 0
+            # update timesteps
+            total_timesteps[l+1] += timesteps_current[1]
+            sequential_timesteps[l+1] = max(sequential_timesteps[l+1], timesteps_current[2])
             return qoi_current_l, qoi_current_l
         end
         # solve given sample one level lower
@@ -112,6 +122,10 @@ function run(experiment::MLMC_Experiment; kwargs...)
         # compute QoI
         qoi_last_l = experiment.qoi(sol_last_l)
         qoi_diff = qoi_current_l - qoi_last_l
+
+        # update timesteps
+        total_timesteps[l+1] += timesteps_current[1] + timesteps_last[1]
+        sequential_timesteps[l+1] = max(sequential_timesteps[l+1], timesteps_current[2] + timesteps_last[2]) # for a given sample, solutions for l and l-1 are currently done sequentially
 
         return qoi_diff, qoi_current_l
     end
@@ -150,7 +164,12 @@ function run(experiment::MLMC_Experiment; kwargs...)
     settings = Dict(fieldnames(MLMC_Experiment) .=> getfield.(Ref(experiment), fieldnames(MLMC_Experiment)))
 
     # combine. Using strings here, as DrWatson does not like Symbols as keys.
-    d = Dict("settings" => settings, "info" => info, "history" => h[1])
+    d = Dict(
+        "settings" => settings,
+        "info" => info,
+        "history" => h[1],
+        "timesteps" => [sum(total_timesteps), maximum(sequential_timesteps)] # assuming all samples of all levels are evaluated in parallel, which they currently aren't
+    )
 
     return d
 end
