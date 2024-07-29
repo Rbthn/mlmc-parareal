@@ -46,13 +46,16 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
         dt_fine = compute_timestep(problem, l)
         dt_coarse = compute_timestep(problem, 0)
 
-        int_fine = init(
-            p,                  # problem
-            integrator,         # timestepping algorithm
-            dt=dt_fine,         # timestep
-            adaptive=false;     # disable adaptive timestepping to force dt
-            kwargs...           # additional keyword-args for solver
-        )
+        # create num_intervals fine integrators to run in parallel
+        fine_integrators = [
+            init(
+                p,                  # problem
+                integrator,         # timestepping algorithm
+                dt=dt_fine,         # timestep
+                adaptive=false;     # disable adaptive timestepping to force dt
+                kwargs...           # additional keyword-args for solver
+            ) for _ in range(1, parareal_args.num_intervals)]
+
         int_coarse = init(
             p,                  # problem
             integrator,         # timestepping algorithm

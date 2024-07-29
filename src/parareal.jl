@@ -37,7 +37,7 @@ named tuple with fields:
 - `info`:                 Addtional solver information.
 """
 function solve_parareal(
-    fine_integrator,
+    fine_integrators,
     coarse_integrator,
     t_0, t_end, u_0,
     args::Parareal_Args)
@@ -67,9 +67,6 @@ function solve_parareal(
     # values of coarse solution at sync points from last iteration.
     # at index j, store G(t_j, t_j+1, u_j^(k-1))
     coarse_old = SizedVector{num_intervals,typeof(u_0)}(undef)
-
-    # create num_intervals fine integrators to run in parallel
-    fine_integrators = [deepcopy(fine_integrator) for _ in range(1, num_intervals)]
 
     # determine initial coarse solution
     for j in range(1, num_intervals)
