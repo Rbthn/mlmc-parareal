@@ -130,29 +130,60 @@ function run(experiment::MLMC_Experiment; kwargs...)
         return qoi_diff, qoi_current_l
     end
 
-    # MultilevelEstimators allows the use of different distributions on each level. We only use one distribution for now.
-    distributions = [experiment.dist for _ in range(1, experiment.L)]
+    ###
+    ### warm-up
+    ###
 
+    warmup_samples = 20
     MLMC_estimator = MultilevelEstimators.Estimator(
-        MultilevelEstimators.ML(), # Multilevel index set
-        MultilevelEstimators.MC(), # Monte-Carlo sampling
-        sample_function,    # (level, ζ) -> (ΔQ, Q)
-        distributions,      # Vector of distributions for the different levels
+        MultilevelEstimators.ML(),  # Multilevel index set
+        MultilevelEstimators.MC(),  # Monte-Carlo sampling
+        sample_function,            # (level, ζ) -> (ΔQ, Q)
+        experiment.dist,
         save=false,
-        ###
+        ### force the use of all levels
         max_index_set_param=experiment.L,
-        min_index_set_param=experiment.L,   # force the use of all levels
-        # TODO additional settings
-        nb_of_warm_up_samples=10,           # Number of initial samples to use for variance estimation
-        continuate=false,                   # don't perform additional runs with looser tolerance
-        do_regression=false,                # don't guess variance of next level based on convergence rate
-        do_mse_splitting=false,             # no advanced splitting of permissible MSE between bias and variance, balance errors 50/50
+        min_index_set_param=experiment.L,
+        ### disable optimizations
+        do_regression=false,
+        continuate=false,
+        do_mse_splitting=false,
+        verbose=false,
+        ### set number of warmup samples
+        nb_of_warm_up_samples=warmup_samples
     )
+    MultilevelEstimators.run(MLMC_estimator, 1e99)
 
-    # do warm-up run with very loose tolerance to take care of precompilation
-    MultilevelEstimators.run(MLMC_estimator, 1)
+    # cost model
+    runtimes = MultilevelEstimators.total_time(MLMC_estimator)
+    function cost_fct(level)
+        # use first and only entry of multi-index,
+        # correct offset (levels start from 0)
+        runtimes[level[1]+1]
+    end
 
-    # do actual run
+
+    ###
+    ### actual run
+    ###
+
+    # use runtimes obtained from warmup
+    MLMC_estimator.options[:cost_model] = cost_fct
+
+    # set number of samples already evaluated
+    for level in range(0, experiment.L)
+        MultilevelEstimators.add_to_total_work(MLMC_estimator, Level(level), warmup_samples)
+    end
+
+    # enable optimizations
+    MLMC_estimator.options[:do_regression] = true
+    MLMC_estimator.options[:continuate] = true # perhaps not the best idea, since the runs with different tolerances will be sequential
+    MLMC_estimator.options[:do_mse_splitting] = true
+
+    # enable output
+    MLMC_estimator.options[:verbose] = true
+
+    # actual run
     h = MultilevelEstimators.run(MLMC_estimator, experiment.ϵ)
     info[:tstop] = now()
 
