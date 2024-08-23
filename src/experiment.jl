@@ -154,8 +154,8 @@ function run(experiment::MLMC_Experiment; kwargs...)
     )
     MultilevelEstimators.run(MLMC_estimator, 1e99)
 
-    # cost model
-    runtimes = MultilevelEstimators.total_time(MLMC_estimator)
+    # use number of sequential steps as proxy for time under ideal conditions
+    runtimes = deepcopy(sequential_timesteps)
     function cost_fct(level)
         # use first and only entry of multi-index,
         # correct offset (levels start from 0)
