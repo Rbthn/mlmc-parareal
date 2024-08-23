@@ -52,7 +52,7 @@ end
 Run the MLMC experiments with settings supplied at construction time.
 Additional kwargs are passed to DifferentialEquations.solve
 """
-function run(experiment::MLMC_Experiment; kwargs...)
+function run(experiment::MLMC_Experiment; verbose=true, warmup_samples=20, continuate=true, do_mse_splitting=true, do_regression=true, kwargs...)
     ############################################################################
     ###########################   VALIDATE INPUTS   ############################
     ############################################################################
@@ -134,7 +134,6 @@ function run(experiment::MLMC_Experiment; kwargs...)
     ### warm-up
     ###
 
-    warmup_samples = 20
     MLMC_estimator = MultilevelEstimators.Estimator(
         MultilevelEstimators.ML(),  # Multilevel index set
         MultilevelEstimators.MC(),  # Monte-Carlo sampling
@@ -176,12 +175,12 @@ function run(experiment::MLMC_Experiment; kwargs...)
     end
 
     # enable optimizations
-    MLMC_estimator.options[:do_regression] = true
-    MLMC_estimator.options[:continuate] = true # perhaps not the best idea, since the runs with different tolerances will be sequential
-    MLMC_estimator.options[:do_mse_splitting] = true
+    MLMC_estimator.options[:do_regression] = do_regression
+    MLMC_estimator.options[:continuate] = continuate # perhaps not the best idea, since the runs with different tolerances will be sequential
+    MLMC_estimator.options[:do_mse_splitting] = do_mse_splitting
 
     # enable output
-    MLMC_estimator.options[:verbose] = true
+    MLMC_estimator.options[:verbose] = verbose
 
     # actual run
     h = MultilevelEstimators.run(MLMC_estimator, experiment.ϵ)
@@ -193,6 +192,10 @@ function run(experiment::MLMC_Experiment; kwargs...)
     ############################################################################
     # inputs / fields of experiment
     settings = Dict(fieldnames(MLMC_Experiment) .=> getfield.(Ref(experiment), fieldnames(MLMC_Experiment)))
+    runtime_options = Dict(
+        :continuate => continuate, :do_regression => do_regression, :do_mse_splitting => do_mse_splitting, :verbose => verbose
+    )
+    merge!(settings, runtime_options)
 
     # combine. Using strings here, as DrWatson does not like Symbols as keys.
     d = Dict(

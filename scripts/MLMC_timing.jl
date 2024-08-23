@@ -33,8 +33,8 @@ parareal = MLMC_Experiment(p, qoi_fn, Uniform(-deviation, deviation),
 
 
 # compare
-result_ref = run(reference)
-result_para = run(parareal)
+result_ref = run(reference, verbose=false, continuate=false)
+result_para = run(parareal, verbose=false, continuate=false)
 
 power_ratio = result_para["timesteps"][1] / result_ref["timesteps"][1]
 bottleneck_ratio = result_para["timesteps"][2] / result_ref["timesteps"][2]
