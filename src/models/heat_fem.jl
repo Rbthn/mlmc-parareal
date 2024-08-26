@@ -32,40 +32,40 @@ end
 
 function instantiate_problem(problem::Heat_Problem, ζ)
     n = length(problem.xi)
-
-    M = spzeros(n, n)
-    K = spzeros(n, n)
-    r = zeros(n)
-    for i in range(1, n - 1)
-        Δx_i = problem.xi[i+1] - problem.xi[i]
-        mass_stencil = [2 1; 1 2] * Δx_i / 6 * problem.cv[i]
-        stiff_stencil = [1 -1; -1 1] * problem.k[i] / Δx_i
-        rhs_stencil = [1; 1] * Δx_i / 2 * problem.Q[i]
-        # TODO allow Q to change over time
-
-        # apply stencils
-        M[i:i+1, i:i+1] += mass_stencil
-        K[i:i+1, i:i+1] += stiff_stencil
-        r[i:i+1] += rhs_stencil
-    end
-
     # Boundary conditions
     idxBC = [1, n]
     idxDoF = setdiff(1:n, idxBC)
 
-    # Dirichlet: Remove rows (test fct. vanishes),
-    # move contributions in other rows to RHS
-    r = r[idxDoF] -
-        K[idxDoF, idxBC] * problem.u_BC #- M[idxDoF, idxBC] * problem.u_BC_diff
-    # ignore time-dependent BC for now
-    M = M[idxDoF, idxDoF]
-    K = K[idxDoF, idxDoF]
+    function assemble_matrices(κ)
+        M = spzeros(n, n)
+        K = spzeros(n, n)
+        r = zeros(n)
+        for i in range(1, n - 1)
+            Δx_i = problem.xi[i+1] - problem.xi[i]
 
-    # TODO allow Neumann, Robin BC
+            mass_stencil = [2 1; 1 2] * Δx_i / 6 * problem.cv[i]
+            stiff_stencil = [1 -1; -1 1] * κ[i] / Δx_i # κ depends on realization ζ
+            rhs_stencil = [1; 1] * Δx_i / 2 * problem.Q[i]
+
+            M[i:i+1, i:i+1] += mass_stencil
+            K[i:i+1, i:i+1] += stiff_stencil
+            r[i:i+1] += rhs_stencil
+        end
+
+        # Dirichlet: Remove rows (test fct. vanishes),
+        # move contributions in other rows to RHS
+        r = r[idxDoF] -
+            K[idxDoF, idxBC] * problem.u_BC #- M[idxDoF, idxBC] * problem.u_BC_diff
+        M = M[idxDoF, idxDoF]
+        K = K[idxDoF, idxDoF]
+
+        return M, K, r
+    end
+
+    M, K, r = assemble_matrices(repeat([ζ[1]], n - 1))
 
     function heat_deriv!(du, u, ζ, t)
         # Mu' = r - Ku
-        # TODO what is subject to uncertainty?
         du[:] = r - K * u
         return nothing
     end
