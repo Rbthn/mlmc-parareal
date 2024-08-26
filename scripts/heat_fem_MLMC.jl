@@ -27,7 +27,7 @@ L = 4
 ϵ = 1e-3
 qoi_fn = L2_squared
 
-e = MLMC_Experiment(p, qoi_fn, Uniform(-deviation, deviation),
+e = MLMC_Experiment(p, qoi_fn, Uniform(1 - deviation, 1 + deviation),
     L, ϵ, use_parareal=true, parareal_args=parareal_args)
 result = run(e)
 
