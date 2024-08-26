@@ -4,9 +4,9 @@ using DrWatson
 # problem
 n = 11
 x = range(0.0, 1.0, n)
-u_0 = [0.0 for _ in range(1, n - 2)]
 u_left = 0.5
 u_right = 1.0
+u_0 = [u_left; repeat([0.0], n - 2); u_right]
 
 cv = [1.0 for _ in range(1, n - 1)]
 k = [1.0 for _ in range(1, n - 1)]

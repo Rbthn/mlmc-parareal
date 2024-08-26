@@ -56,8 +56,8 @@ function instantiate_problem(problem::Heat_Problem, ζ)
         # move contributions in other rows to RHS
         r = r[idxDoF] -
             K[idxDoF, idxBC] * problem.u_BC #- M[idxDoF, idxBC] * problem.u_BC_diff
-        M = M[idxDoF, idxDoF]
-        K = K[idxDoF, idxDoF]
+        M[idxBC, idxDoF] .= 0.0 # size of M has to be compatible to full u
+        K = K[idxDoF, idxDoF]   # size of K can be reduced
 
         return M, K, r
     end
@@ -66,7 +66,8 @@ function instantiate_problem(problem::Heat_Problem, ζ)
 
     function heat_deriv!(du, u, ζ, t)
         # Mu' = r - Ku
-        du[:] = r - K * u
+        du[idxDoF] = r - K * u[idxDoF]
+        du[idxBC] .= 0.0 # for convenience, include idxBC are not eliminated from u
         return nothing
     end
 
