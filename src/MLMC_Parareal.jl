@@ -17,6 +17,9 @@ export MLMC_Experiment, run
 include("models/dahlquist.jl")
 export Dahlquist_Problem, instantiate_problem
 
+include("models/pendulum.jl")
+export Pendulum_Problem, instantiate_problem
+
 include("models/heat_fem.jl")
 export Heat_Problem, instantiate_problem
 
