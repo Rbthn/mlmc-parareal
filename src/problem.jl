@@ -40,7 +40,7 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
             adaptive=false;     # disable adaptive timestepping to force dt
             kwargs...           # additional keyword-args for solver
         )
-        timesteps = sol.stats.naccept
+        timesteps = sol.stats.nsolve
         return sol, [timesteps, timesteps]
     else
         dt_fine = compute_timestep(problem, l)

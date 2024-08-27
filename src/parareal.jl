@@ -70,14 +70,13 @@ function solve_parareal(
 
     # determine initial coarse solution
     for j in range(1, num_intervals)
-        coarse_result = propagate!(
+        coarse_result, steps = propagate!(
             coarse_integrator, t[j], t[j+1], sync_values[j])
 
         sync_values[j+1] = coarse_result
         coarse_old[j] = coarse_result
 
         # count timesteps
-        steps = length(coarse_integrator.sol.t) - 1
         timesteps_total += steps
         timesteps_seq += steps
     end
@@ -94,16 +93,19 @@ function solve_parareal(
         end
 
         # parallel
+        parallel_steps = zeros(Int, num_intervals)
         Threads.@threads for j in range(k, num_intervals)
-            end_value = propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
+            end_value, steps = propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
             # ϵ = u^k_j - F(t_j, t_j+1, u^k_j-1)
             # sync value from last interation, fine solution from this iteration
             sync_jumps[j] = sync_values[j+1] - end_value
+
+            # record timesteps
+            parallel_steps[j] = steps
         end
         # count timesteps outside of parallel loop to avoid race condition
-        steps = length(fine_integrators[1].sol.t) - 1
-        timesteps_total += (num_intervals - k + 1) * steps
-        timesteps_seq += steps
+        timesteps_seq += maximum(parallel_steps)
+        timesteps_total += sum(parallel_steps)
 
         # Due to Parareal exactness, the jumps at t_1...t_k-1 are zero.
         # There is no need to compute these jumps in the loop above, we can just set them to zero.
@@ -120,14 +122,13 @@ function solve_parareal(
 
         # sequential
         for j in range(k, num_intervals)
-            coarse_result = propagate!(
+            coarse_result, steps = propagate!(
                 coarse_integrator, t[j], t[j+1], sync_values[j])
 
             sync_values[j+1] = coarse_result + fine_integrators[j].u - coarse_old[j]
             coarse_old[j] = coarse_result
 
             # count timesteps
-            steps = length(coarse_integrator.sol.t) - 1
             timesteps_total += steps
             timesteps_seq += steps
         end
@@ -186,7 +187,9 @@ and step to t=`t_2`.
     also returns the computed value u at t=`t_2`
 """
 function propagate!(integrator, t_1, t_2, u_1)
+    steps_pre = integrator.sol.stats.nsolve
     reinit!(integrator, u_1, t0=t_1)
     step!(integrator, t_2 - t_1, true)
-    return integrator.sol.u[end]
+    steps_post = integrator.sol.stats.nsolve
+    return integrator.sol.u[end], steps_post - steps_pre
 end
