@@ -80,10 +80,16 @@ bar!(plt, [leftx - xoffset], [time_para], label="Parareal", color=color_para)
 bar!(ax_energy, [rightx], [power_ref], label=nothing, color=color_ref, ylabel="total linear system solves")
 bar!(ax_energy, [rightx - xoffset], [power_para], label=nothing, color=color_para)
 
-# save plot
-wsave(plotsdir(savename(
-        "MLMC_timing",
-        (problem=p.name, level=L, K=N),
-        "pdf")), plt)
+# save plot and settings
+name = savename(
+    "MLMC_timing",
+    (problem=p.name,))
+settings = (; u_0, t_0, t_end, λ, Δt_0, L, deviation, mlmc_tol, qoi_fn, N, jump_tol, seed)
+results = (; mean_ref, mean_para, power_para, power_ref, time_para, time_ref)
+
+wsave(plotsdir(name * ".pdf"), plt)
+wsave(plotsdir(name * ".jld2"), Dict(
+    "settings" => namedtuple_to_dict(settings),
+    "results" => namedtuple_to_dict(results)))
 
 print("done")

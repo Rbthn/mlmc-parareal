@@ -59,8 +59,6 @@ reference_bench = minimum(bench_1.times)
 scale = 1e-6 # ns to ms
 limits = ylims(plt)
 ratio = (reference_ts - limits[1]) / (limits[2] - limits[1])
-#actual_max = 350 # maximum value in ms
-#actual_min = 1 / (ratio - 1) * (ratio * actual_max - scale * reference_bench)
 actual_min = 0
 actual_max = 1 / ratio * (scale * reference_bench + (ratio - 1) * actual_min)
 ylims!(ax_actual, actual_min, actual_max)
@@ -71,10 +69,16 @@ hline!(ax_actual, [scale * reference_bench], label=nothing, linestyle=:dash, col
 scatter!(ax_actual, scale * actual_parareal[:], label=nothing, color=colors[3])
 scatter!(plt, fill(NaN, 1:N), label="measured runtime", color=colors[3])
 
-# save plot
-wsave(plotsdir(savename(
-        "parareal_timing",
-        (problem=p.name, level=L, K=N),
-        "pdf")), plt)
+# save plot and settings
+name = savename("parareal_timing",
+    (problem=p.name,))
+settings = (; u_0, t_0, t_end, λ, Δt_0, N, L, benchmark_time)
+results = (; actual_parareal, reference_bench, reference_ts, ts_parareal)
+
+wsave(plotsdir(name * ".pdf"), plt)
+wsave(plotsdir(name * ".jld2"), Dict(
+    "settings" => namedtuple_to_dict(settings),
+    "results" => namedtuple_to_dict(results)))
+
 
 print("done")
