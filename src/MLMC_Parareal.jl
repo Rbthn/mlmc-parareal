@@ -23,4 +23,8 @@ export Pendulum_Problem, instantiate_problem
 include("models/heat_fem.jl")
 export Heat_Problem, instantiate_problem
 
+# utilities
+include("utilities.jl")
+export namedtuple_to_dict
+
 end
