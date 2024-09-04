@@ -85,7 +85,7 @@ name = savename(
     "MLMC_timing",
     (problem=p.name,))
 settings = (; u_0, t_0, t_end, λ, Δt_0, L, deviation, mlmc_tol, qoi_fn, N, jump_tol, seed)
-results = (; mean_ref, mean_para, power_para, power_ref, time_para, time_ref)
+results = (; result_ref, result_para, mean_ref, mean_para, power_para, power_ref, time_para, time_ref)
 
 wsave(plotsdir(name * ".pdf"), plt)
 wsave(plotsdir(name * ".jld2"), Dict(
