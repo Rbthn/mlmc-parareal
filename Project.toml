@@ -19,6 +19,7 @@ Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Reporter = "61aa9bae-1cbb-11e9-0846-97405986744d"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
 DrWatson = "2.15.0"

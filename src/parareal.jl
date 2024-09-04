@@ -2,6 +2,7 @@ using DifferentialEquations
 using LinearAlgebra
 using StaticArrays
 using Parameters
+using TimerOutputs
 
 @with_kw struct Parareal_Args
     num_intervals::Int
@@ -45,42 +46,45 @@ function solve_parareal(
     ###
     ### Initialization
     ###
-    @unpack num_intervals, max_iterations, tolerance, jump_norm = args
+    reset_timer!()
+    @timeit_debug "overhead" @timeit_debug "initialization" begin
+        @unpack num_intervals, max_iterations, tolerance, jump_norm = args
 
-    # stats
-    timesteps_total = 0 # total timesteps, proxy for power
-    timesteps_seq = 0   # sequential timesteps, proxy for WCT with inf. #cores
-    retcode = nothing
-    k = 0               # iteration counter
-    errors = fill(Inf, num_intervals) # Parareal errors after each iteration
+        # stats
+        timesteps_total = 0 # total timesteps, proxy for power
+        timesteps_seq = 0   # sequential timesteps, proxy for WCT with inf. #cores
+        retcode = nothing
+        k = 0               # iteration counter
+        errors = fill(Inf, num_intervals) # Parareal errors after each iteration
 
-    # set parareal sync points
-    t = range(t_0, t_end, length=num_intervals + 1)
+        # set parareal sync points
+        t = range(t_0, t_end, length=num_intervals + 1)
 
-    # values of solution at sync points
-    sync_values = SizedVector{num_intervals + 1,typeof(u_0)}(undef)
-    sync_values[1] = u_0
+        # values of solution at sync points
+        sync_values = SizedVector{num_intervals + 1,typeof(u_0)}(undef)
+        sync_values[1] = u_0
 
-    # jumps at sync points t_1 ... t_(end-1)
-    sync_jumps = SizedVector{num_intervals,typeof(u_0)}(undef)
+        # jumps at sync points t_1 ... t_(end-1)
+        sync_jumps = SizedVector{num_intervals,typeof(u_0)}(undef)
 
-    # values of coarse solution at sync points from last iteration.
-    # at index j, store G(t_j, t_j+1, u_j^(k-1))
-    coarse_old = SizedVector{num_intervals,typeof(u_0)}(undef)
-
-    # determine initial coarse solution
-    for j in range(1, num_intervals)
-        coarse_result, steps = propagate!(
-            coarse_integrator, t[j], t[j+1], sync_values[j])
-
-        sync_values[j+1] = coarse_result
-        coarse_old[j] = coarse_result
-
-        # count timesteps
-        timesteps_total += steps
-        timesteps_seq += steps
+        # values of coarse solution at sync points from last iteration.
+        # at index j, store G(t_j, t_j+1, u_j^(k-1))
+        coarse_old = SizedVector{num_intervals,typeof(u_0)}(undef)
     end
+    @timeit_debug "solvers" @timeit_debug "initial coarse solver" begin
+        # determine initial coarse solution
+        for j in range(1, num_intervals)
+            coarse_result, steps = propagate!(
+                coarse_integrator, t[j], t[j+1], sync_values[j])
 
+            sync_values[j+1] = coarse_result
+            coarse_old[j] = coarse_result
+
+            # count timesteps
+            timesteps_total += steps
+            timesteps_seq += steps
+        end
+    end
     ###
     ### Main loop
     ###
@@ -94,7 +98,7 @@ function solve_parareal(
 
         # parallel
         parallel_steps = zeros(Int, num_intervals)
-        Threads.@threads for j in range(k, num_intervals)
+        @timeit_debug "solvers" @timeit_debug "fine solver" Threads.@threads for j in range(k, num_intervals)
             end_value, steps = propagate!(fine_integrators[j], t[j], t[j+1], sync_values[j])
             # ϵ = u^k_j - F(t_j, t_j+1, u^k_j-1)
             # sync value from last interation, fine solution from this iteration
@@ -121,16 +125,18 @@ function solve_parareal(
         end
 
         # sequential
-        for j in range(k, num_intervals)
-            coarse_result, steps = propagate!(
-                coarse_integrator, t[j], t[j+1], sync_values[j])
+        @timeit_debug "solvers" @timeit_debug "coarse solver" begin
+            for j in range(k, num_intervals)
+                coarse_result, steps = propagate!(
+                    coarse_integrator, t[j], t[j+1], sync_values[j])
 
-            sync_values[j+1] = coarse_result + fine_integrators[j].u - coarse_old[j]
-            coarse_old[j] = coarse_result
+                sync_values[j+1] = coarse_result + fine_integrators[j].u - coarse_old[j]
+                coarse_old[j] = coarse_result
 
-            # count timesteps
-            timesteps_total += steps
-            timesteps_seq += steps
+                # count timesteps
+                timesteps_total += steps
+                timesteps_seq += steps
+            end
         end
     end
 
@@ -140,25 +146,30 @@ function solve_parareal(
     # with the fields u, t, and additional information.
     # At the discontinuities, use the left solution.
     # TODO is this correct?
-    solution_sizes = map(integrator -> length(integrator.sol.t) - 1,
-        fine_integrators)
-    total_size = sum(solution_sizes) + 1
+    @timeit_debug "overhead" @timeit_debug "solution stitching" begin
+        solution_sizes = map(integrator -> length(integrator.sol.t) - 1,
+            fine_integrators)
+        total_size = sum(solution_sizes) + 1
 
-    all_t = SizedVector{total_size,typeof(t_0)}(undef)
-    all_t[1] = t_0
-    all_u = SizedVector{total_size,typeof(u_0)}(undef)
-    all_u[1] = u_0
-    idx = 1
+        all_t = SizedVector{total_size,typeof(t_0)}(undef)
+        all_t[1] = t_0
+        all_u = SizedVector{total_size,typeof(u_0)}(undef)
+        all_u[1] = u_0
+        idx = 1
 
-    for i in range(1, num_intervals)
-        size = solution_sizes[i]
-        int = fine_integrators[i]
-        all_t[idx+1:idx+size] = int.sol.t[2:end]
-        all_u[idx+1:idx+size] = int.sol.u[2:end]
+        for i in range(1, num_intervals)
+            size = solution_sizes[i]
+            int = fine_integrators[i]
+            all_t[idx+1:idx+size] = int.sol.t[2:end]
+            all_u[idx+1:idx+size] = int.sol.u[2:end]
 
-        idx += size
+            idx += size
+        end
     end
-
+    if isdefined(@__MODULE__, :timeit_debug_enabled) &&
+       getfield(@__MODULE__, :timeit_debug_enabled)()
+        print_timer()
+    end
     return (u=all_u, t=all_t,
         stats=(
             timesteps=[timesteps_total, timesteps_seq],
