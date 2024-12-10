@@ -1,3 +1,6 @@
 [submodule "dev/MultilevelEstimators.jl"]
 	path = dev/MultilevelEstimators.jl
 	url = git@github.com:Rbthn/MultilevelEstimators.jl.git
+[submodule "dev/Parareal"]
+	path = dev/Parareal
+	url = git@github.com:Rbthn/parareal.git
