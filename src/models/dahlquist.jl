@@ -9,14 +9,15 @@ struct Dahlquist_Problem{T,U,S} <: MLMC_Problem{T,U} where {S}
     t_end::T        # stop time
     λ               # factor in dahlquist equation
     Δt_0::T         # timestep at level 0
+    alg             # timestepping algorithm
     name::String
 
     # define internal constructor to check inputs
-    function Dahlquist_Problem(u_0::SizedVector{S,U}, t_0::T, t_end::T, λ, Δt_0) where {T<:AbstractFloat,U<:AbstractFloat,S}
+    function Dahlquist_Problem(u_0::SizedVector{S,U}, t_0::T, t_end::T, λ, Δt_0; alg=ImplicitEuler()) where {T<:AbstractFloat,U<:AbstractFloat,S}
         # validate time interval
         @assert t_0 <= t_end
 
-        return new{T,U,S}(u_0, t_0, t_end, λ, Δt_0, "Dahlquist")
+        return new{T,U,S}(u_0, t_0, t_end, λ, Δt_0, alg, "Dahlquist")
     end
 
     # convert scalar unknown to 1D vector to please DifferentialEquations

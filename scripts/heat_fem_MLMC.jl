@@ -19,15 +19,22 @@ t_end = 1.0
 p = Heat_Problem(u_0, u_left, u_right, t_0, t_end, Δt_0, x, cv, k, Q)
 
 # parareal
-parareal_args = Parareal_Args(num_intervals=4, tolerance=1e-4)
+parareal_args = (;
+    parareal_intervals=4,
+    reltol=1e-4,
+    abstol=1e-2,
+    coarse_args=(;),
+    fine_args=(;)
+)
 
 # MLMC
 deviation = 0.5
+dist = Uniform(1 - deviation, 1 + deviation)
 L = 4
 ϵ = 1e-3
 qoi_fn = L2_squared
 
-e = MLMC_Experiment(p, qoi_fn, Uniform(1 - deviation, 1 + deviation),
+e = MLMC_Experiment(p, qoi_fn, dist,
     L, ϵ, use_parareal=true, parareal_args=parareal_args)
 result = run(e)
 

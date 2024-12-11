@@ -1,4 +1,5 @@
 using DifferentialEquations
+using Parareal
 
 ### This type defines an MLMC Problem.
 ### Primary use: Objects of this type are passed to MLMC_Experiment,
@@ -21,23 +22,33 @@ abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 """
     solve(problem, level, ζ[, integrator][, use_parareal][, parareal_intervals][, parareal_tolerance][, kwargs...])
 
-Solve a given `MLMC_Problem` with realization `ζ` and discretization level `level`. Return solution and (total timesteps, sequential timesteps)
+    Solve a given `MLMC_Problem` with realization `ζ` and discretization level `level`. Return solution and (total timesteps, sequential timesteps).
+
+    If `use_parareal` is `true`, the parareal algorithm is used to speed up
+    the solution for samples on the finest level.
+    Options for parareal can be passed via `parareal_args`. See `Parareal`
+    documentation for a list of arguments.
+
+    Additional solver arguments (used on all levels) can be passed as `kwargs`.
 """
-function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
+function solve(problem::MLMC_Problem, alg, level, ζ;
     use_parareal=false,
-    parareal_args::Union{Parareal_Args,Nothing}=nothing,
+    coarse_args=(;),
+    fine_args=(;),
+    parareal_args=(;),
     kwargs...)
 
+    # current, maximum
     l, L = level
-    p::ODEProblem = instantiate_problem(problem, ζ)
+
+    prob = instantiate_problem(problem, ζ)
     if !use_parareal || l != L
         # Don't use Parareal
         dt = compute_timestep(problem, l)
         sol = DifferentialEquations.solve(
-            p,                  # problem
-            integrator,         # timestepping algorithm
+            prob,               # problem
+            alg,                # timestepping algorithm
             dt=dt,              # timestep
-            adaptive=false;     # disable adaptive timestepping to force dt
             kwargs...           # additional keyword-args for solver
         )
         timesteps = sol.stats.nsolve
@@ -46,30 +57,16 @@ function solve(problem::MLMC_Problem, level, ζ; integrator=ImplicitEuler(),
         dt_fine = compute_timestep(problem, l)
         dt_coarse = compute_timestep(problem, 0)
 
-        # create num_intervals fine integrators to run in parallel
-        fine_integrators = [
-            init(
-                p,                  # problem
-                integrator,         # timestepping algorithm
-                dt=dt_fine,         # timestep
-                adaptive=false;     # disable adaptive timestepping to force dt
-                kwargs...           # additional keyword-args for solver
-            ) for _ in range(1, parareal_args.num_intervals)]
-
-        int_coarse = init(
-            p,                  # problem
-            integrator,         # timestepping algorithm
-            dt=dt_coarse,       # timestep
-            adaptive=false;     # disable adaptive timestepping to force dt
-            kwargs...           # additional keyword-args for solver
+        sol, _ = Parareal.solve(
+            prob,               # problem
+            alg;                # timestepping algorithm
+            coarse_args=(; coarse_args..., dt=dt_coarse),
+            fine_args=(; fine_args..., dt=dt_fine),
+            parareal_args...,
+            kwargs...
         )
 
-        sol = solve_parareal(fine_integrators, int_coarse,
-            problem.t_0, problem.t_end,
-            problem.u_0,
-            parareal_args
-        )
-        return sol, sol.stats.timesteps
+        return sol, [sol.stats.nsolve, 0]
     end
 end
 
