@@ -1678,7 +1678,7 @@ uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 version = "0.12.3"
 
 [[deps.Parareal]]
-deps = ["DifferentialEquations", "Distributed", "SciMLBase"]
+deps = ["DifferentialEquations", "Distributed", "Logging", "SciMLBase"]
 path = "dev/Parareal"
 uuid = "471f022c-f055-4b95-943e-e08608a061c9"
 version = "0.1.0-DEV"
