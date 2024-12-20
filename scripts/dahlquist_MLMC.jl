@@ -1,15 +1,15 @@
 ## Perform MLMC for the simple Dahlquist test equation: y' = λy
 
 # problem
-u_0 = 1.0
-t_0 = 0.0
-t_end = 8.0
-λ = -1.0
-Δt_0 = 0.1 / 2^5
-p = Dahlquist_Problem(u_0, t_0, t_end, λ, Δt_0)
+const u_0 = 1.0
+const t_0 = 0.0
+const t_end = 8.0
+const λ = -1.0
+const Δt_0 = 0.1 / 2^5
+const p = Dahlquist_Problem(u_0, t_0, t_end, λ, Δt_0)
 
 # parareal
-parareal_args = (;
+const parareal_args = (;
     parareal_intervals=8,
     reltol=1e-4,
     abstol=1e-2,
@@ -18,17 +18,17 @@ parareal_args = (;
 )
 
 # additional solver args
-solver_args = (;
+const solver_args = (;
     adaptive=false,
     maxiters=typemax(Int),
 )
 
 # MLMC
-deviation = 0.5
-dist = Uniform(-deviation, deviation)
-L = 10
-ϵ = 1e-3
-qoi_fn = L2_squared
+const deviation = 0.5
+const dist = Uniform(-deviation, deviation)
+const L = 10
+const ϵ = 1e-3
+const qoi_fn = L2_squared
 
 e = MLMC_Experiment(
     p, qoi_fn, dist,

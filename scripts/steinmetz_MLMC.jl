@@ -1,6 +1,3 @@
-using DrWatson
-@quickactivate :MLMC_Parareal
-
 # TIND : 4-pole induction machine
 #
 # Robrecht De Weerdt, Eindige Elementen Modellering van Kooianker Inductiemotoren, PhD thesis, KU Leuven, 1995.
@@ -11,22 +8,23 @@ using DrWatson
 # Technische Universität Darmstadt
 # www.temf.de
 
+
 ### PROBLEM
 ## A. Data
-f = 50                          # applied frequency [Hz]
-w = 2 * pi * f                  # applied angular frequency [rad/s]
+const f = 50                          # applied frequency [Hz]
+const w = 2 * pi * f                  # applied angular frequency [rad/s]
 # A.1. Rated operation
-Prat = 402e3                    # rated power (3 phases) [W]
-Urat = 1716 / sqrt(3)           # rated voltage (equivalent phase, rms value) [V]
-frat = 46.6                     # rated frequency [Hz]
-Irat = 154                      # rated current [A]
-cosphirat = 0.91                # rated power factor []
+const Prat = 402e3                    # rated power (3 phases) [W]
+const Urat = 1716 / sqrt(3)           # rated voltage (equivalent phase, rms value) [V]
+const frat = 46.6                     # rated frequency [Hz]
+const Irat = 154                      # rated current [A]
+const cosphirat = 0.91                # rated power factor []
 # A.2. Data
-pp = 2                          # pole-pair number [#]
-wmrat = 2 * pi * frat / pp      # rated speed [rad/s]
-Mzrat = Prat / wmrat            # rated torque [Nm]
+const pp = 2                          # pole-pair number [#]
+const wmrat = 2 * pi * frat / pp      # rated speed [rad/s]
+const Mzrat = Prat / wmrat            # rated torque [Nm]
 # A.3. Steinmetz model
-nominal_params = (;
+const nominal_params = (;
     pp=pp,                      # pole-pair number [#]
     J=8.4603 + 12.5014,         # moment of inertia of the rotor and drive train [kgm^2]
     R1=1.111140e-01,            # stator resistance [Ohm]
@@ -39,56 +37,108 @@ nominal_params = (;
 
 ## Excitation (line start-up)
 # applied voltage [V]
-ftu = (t) -> Urat * [cos(w * t); cos(w * t - 2 * pi / 3); cos(w * t + 2 * pi / 3)];
+const ftu = (t) -> Urat * [cos(w * t); cos(w * t - 2 * pi / 3); cos(w * t + 2 * pi / 3)]
 # Line start-up with friction load [Nm]
-ftload = (t, wm) -> Mzrat * (wm / wmrat);
-u_0 = zeros(10)
+const ftload = (t, wm) -> Mzrat * (wm / wmrat)
+const u_0 = zeros(10)
 
 ## Timestepping
-t_0 = 0.0
-t_end = 1.0
-Δt_0 = 1e-3
+const t_0 = 0.0
+const t_end = 1.0
+const Δt_0 = 1e-3
 
 ### PARAREAL
-parareal_intervals = 10
-parareal_reltol = 5e-2
-parareal_abstol = 10
-parareal_maxit = 4
+const parareal_intervals = 4
+const parareal_reltol = 5e-2
+const parareal_abstol = 10
+const parareal_maxit = 4
 
-args = (; adaptive=false, maxiters=typemax(Int), saveat=1e-3)
-coarse_args = (; dt=1e-3)
-fine_args = (; dt=1e-5)
+const args = (; adaptive=false, maxiters=typemax(Int), saveat=1e-3)
+const coarse_args = (; dt=1e-3)
+const fine_args = (;)
 
-p = Steinmetz_Problem(u_0, t_0, t_end, Δt_0; nominal_params..., w, ftu, ftload, args...)
+const parareal_args = (;
+    parareal_intervals=parareal_intervals,
+    reltol=parareal_reltol,
+    abstol=parareal_abstol,
+    maxit=parareal_maxit,
+    coarse_args=coarse_args,
+    fine_args=fine_args,
+)
 
-# parareal
-parareal_args = (;
-    parareal_intervals=8,
-    tol=1e-4,
-    coarse_args=(;),
-    fine_args=(;)
+const p = Steinmetz_Problem(u_0, t_0, t_end, Δt_0; nominal_params..., w, ftu, ftload, args...)
+
+# MLMC
+const L = 3               # use refinement levels 0, 1, 2
+
+# noise
+const deviations = 0.05 * [
+    nominal_params.R1
+    nominal_params.Lh
+    nominal_params.RFe
+    nominal_params.R2p
+    nominal_params.L1
+    nominal_params.L2p
+]
+const dists = Uniform.(-deviations, deviations)
+
+# QoI
+"""
+    Return electrical energy in the system
+"""
+function total_energy(sol::ODESolution)
+    i_1 = [e[5] for e in sol.u]
+    i_2 = [e[6] for e in sol.u]
+    i_3 = [e[7] for e in sol.u]
+
+    v = ftu.(sol.t)
+    v_1 = [e[1] for e in v]
+    v_2 = [e[2] for e in v]
+    v_3 = [e[3] for e in v]
+
+    p_1 = i_1 .* v_1
+    p_2 = i_2 .* v_2
+    p_3 = i_3 .* v_3
+
+    e_1 = integrate(sol.t, p_1, SimpsonEven())
+    e_2 = integrate(sol.t, p_2, SimpsonEven())
+    e_3 = integrate(sol.t, p_3, SimpsonEven())
+
+    e = e_1 + e_2 + e_3
+
+    return e / 1e6
+end
+const qoi_fn = total_energy
+
+# UQ tolerance
+const ϵ = 1e-3
+
+### determine cost
+costs = fill(Inf, L + 1)
+for l = 0:L
+    #prob = instantiate_problem(p, zeros(size(deviations)))
+    #time = @belapsed DifferentialEquations.solve(
+    #    $prob, p.alg;
+    #    dt=compute_timestep(p, $l)
+    #)
+    #costs[l+1] = time
+
+    costs[l+1] = 10.0^l
+end
+
+e = MLMC_Experiment(p, qoi_fn, dists,
+    L, ϵ;
+    use_parareal=false,
+    parareal_args=parareal_args,
+    cost_model=(l -> costs[l[1]+1])
 )
 
 
-
-
-
-# MLMC
-L = 2               # use refinement levels 0, 1, 2
-
-# noise
-deviation = 0.5
-dist = Normal(0, deviation)
-
-# QoI
-qoi_fn = MLMC_Parareal.time_to_steady
-
-# UQ tolerance
-ϵ = 1e-3
-
-e = MLMC_Experiment(p, qoi_fn, dist,
-    L, ϵ, use_parareal=true, parareal_args=parareal_args)
-result = run(e, continuate=false)
+result = run(
+    e, continuate=false,
+    do_mse_splitting=true,
+    min_splitting=0.01,
+)
 
 #save with git commit hash (and patch if repo is dirty)
 problem_name = p.name
