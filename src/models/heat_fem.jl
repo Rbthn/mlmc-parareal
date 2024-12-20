@@ -13,10 +13,11 @@ struct Heat_Problem{T,U} <: MLMC_Problem{T,U}
     cv::Vector      # volumetric heat capacity for each element. Size n-1
     k::Vector       # thermal conductivity for each element. Size n-1
     Q::Vector       # Heat source term. Constant per element and in time for now.
+    alg
     name::String
 
     # define internal constructor to check inputs
-    function Heat_Problem(u_0::Vector{U}, u_left, u_right, t_0::T, t_end::T, Δt_0, xi, cv, k, Q) where {T<:AbstractFloat,U<:AbstractFloat}
+    function Heat_Problem(u_0::Vector{U}, u_left, u_right, t_0::T, t_end::T, Δt_0, xi, cv, k, Q; alg=ImplicitEuler()) where {T<:AbstractFloat,U<:AbstractFloat}
         # validate time interval
         @assert t_0 <= t_end
 
@@ -26,7 +27,7 @@ struct Heat_Problem{T,U} <: MLMC_Problem{T,U}
         @assert length(k) == n - 1
         @assert length(Q) == n - 1
 
-        return new{T,U}(u_0, [u_left, u_right], t_0, t_end, Δt_0, xi, cv, k, Q, "Heat_FEM")
+        return new{T,U}(u_0, [u_left, u_right], t_0, t_end, Δt_0, xi, cv, k, Q, alg, "Heat_FEM")
     end
 end
 
