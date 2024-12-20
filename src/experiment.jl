@@ -12,13 +12,16 @@ struct MLMC_Experiment
     qoi::Function
     ### Related to random sampling
     seed::UInt
-    dist::AbstractDistribution
+    dist::Vector{AbstractDistribution}
     ### Related to MLMC
     L::Int              # Use discretization levels l=0...L
     ϵ::Float64          # RMSE tolerance
     ### Related to Parareal
     use_parareal::Bool
     parareal_args
+
+    ### Additional arguments for estimator
+    estimator_args::NamedTuple
 
     ### Distributions.jl allows us to sample random numbers
     ### according to a distribution, e.g. Uniform() or Normal().
@@ -38,11 +41,27 @@ struct MLMC_Experiment
     ###     random numbers generated from a given seed can change between
     ###     Julia (minor) version updates.
     ###     Also see https://docs.julialang.org/en/v1/stdlib/Random/#Reproducibility
-    function MLMC_Experiment(problem::MLMC_Problem, qoi::Function, dist=Uniform(0.0, 1.0), L=2, ϵ=1e-3; seed=rand(UInt),
-        use_parareal=false, parareal_args=())
+    function MLMC_Experiment(
+        problem::MLMC_Problem, qoi::Function,
+        dist, L=2, ϵ=1e-3;
+        seed=rand(UInt),
+        use_parareal=false,
+        parareal_args=(),
+        kwargs...
+    )
         # Seed PRNG
         Random.seed!(seed)
-        return new(problem, qoi, seed, dist, L, ϵ, use_parareal, parareal_args)
+
+        if isa(dist, AbstractDistribution)
+            dist = [dist]
+        end
+
+        return new(
+            problem, qoi,
+            seed, dist, L, ϵ,
+            use_parareal,
+            parareal_args,
+            NamedTuple(kwargs))
     end
 end
 
@@ -52,7 +71,17 @@ end
 Run the MLMC experiments with settings supplied at construction time.
 Additional kwargs are passed to DifferentialEquations.solve
 """
-function run(experiment::MLMC_Experiment; verbose=true, warmup_samples=20, continuate=true, do_mse_splitting=true, do_regression=true, kwargs...)
+function run(
+    experiment::MLMC_Experiment;
+    verbose=true,
+    warmup_samples=20,
+    continuate=true,
+    do_mse_splitting=true,
+    do_regression=true,
+    min_splitting=0.5,
+    max_splitting=0.99,
+    kwargs...
+)
     ############################################################################
     #########################   COLLECT SYSTEM INFO   ##########################
     ############################################################################
@@ -142,7 +171,9 @@ function run(experiment::MLMC_Experiment; verbose=true, warmup_samples=20, conti
         do_mse_splitting=false,
         verbose=false,
         ### set number of warmup samples
-        nb_of_warm_up_samples=warmup_samples
+        nb_of_warm_up_samples=warmup_samples;
+        # additional options
+        experiment.estimator_args...
     )
     MultilevelEstimators.run(MLMC_estimator, 1e99)
 
@@ -170,7 +201,9 @@ function run(experiment::MLMC_Experiment; verbose=true, warmup_samples=20, conti
     # enable optimizations
     MLMC_estimator.options[:do_regression] = do_regression
     MLMC_estimator.options[:continuate] = continuate # perhaps not the best idea, since the runs with different tolerances will be sequential
-    MLMC_estimator.options[:do_mse_splitting] = do_mse_splitting
+    MLMC_estimator.options[:do_mse_slitting] = do_mse_splitting
+    MLMC_estimator.options[:min_splitting] = min_splitting
+    MLMC_estimator.options[:max_splitting] = max_splitting
 
     # enable output
     MLMC_estimator.options[:verbose] = verbose
