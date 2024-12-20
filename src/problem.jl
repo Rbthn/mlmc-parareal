@@ -33,11 +33,11 @@ abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 """
 function solve(problem::MLMC_Problem, alg, level, ζ;
     use_parareal=false,
-    coarse_args=(;),
-    fine_args=(;),
-    parareal_args=(;),
-    kwargs...)
-
+    parareal_args=(;
+        coarse_args=(;),
+        fine_args=(;)),
+    kwargs...
+)
     # current, maximum
     l, L = level
 
@@ -47,7 +47,7 @@ function solve(problem::MLMC_Problem, alg, level, ζ;
         dt = compute_timestep(problem, l)
         sol = DifferentialEquations.solve(
             prob,               # problem
-            alg,                # timestepping algorithm
+            alg;                # timestepping algorithm
             dt=dt,              # timestep
             kwargs...           # additional keyword-args for solver
         )
@@ -55,18 +55,25 @@ function solve(problem::MLMC_Problem, alg, level, ζ;
         return sol, [timesteps, timesteps]
     else
         dt_fine = compute_timestep(problem, l)
-        dt_coarse = compute_timestep(problem, 0)
+        dt_coarse = compute_timestep(problem, 0)    # using very coarse timestep
+
+        # set dt for coarse and fine arguments and remove from parareal args
+        c_args = (; dt=dt_coarse, parareal_args.coarse_args...)
+        f_args = (; dt=dt_fine, parareal_args.fine_args...)
+
+        parareal_args = drop(parareal_args, :coarse_args)
+        parareal_args = drop(parareal_args, :fine_args)
 
         sol, _ = Parareal.solve(
             prob,               # problem
             alg;                # timestepping algorithm
-            coarse_args=(; coarse_args..., dt=dt_coarse),
-            fine_args=(; fine_args..., dt=dt_fine),
-            parareal_args...,
-            kwargs...
+            coarse_args=c_args,
+            fine_args=f_args,
+            kwargs...,
+            parareal_args...,   # prefer parareal_args in case of key conflict with kwargs
         )
 
-        return sol, [sol.stats.nsolve, 0]
+        return sol, [sol.stats.nsolve, sol.stats.nsolve]
     end
 end
 
