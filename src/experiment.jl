@@ -152,10 +152,6 @@ function run(
         return qoi_diff, qoi_current_l
     end
 
-    ###
-    ### warm-up
-    ###
-
     MLMC_estimator = MultilevelEstimators.Estimator(
         MultilevelEstimators.ML(),  # Multilevel index set
         MultilevelEstimators.MC(),  # Monte-Carlo sampling
@@ -165,33 +161,22 @@ function run(
         ### force the use of all levels
         max_index_set_param=experiment.L,
         min_index_set_param=experiment.L,
-        ### disable optimizations
-        do_regression=false,
-        continuate=false,
-        do_mse_splitting=false,
-        verbose=false,
+        ### optimizations
+        do_regression=do_regression,
+        continuate=continuate,
+        do_mse_splitting=do_mse_splitting,
+        min_splitting=min_splitting,
+        max_splitting=max_splitting,
+        verbose=verbose,
         ### set number of warmup samples
         nb_of_warm_up_samples=warmup_samples;
         # additional options
         experiment.estimator_args...
     )
-    MultilevelEstimators.run(MLMC_estimator, 1e99)
 
     ###
     ### actual run
     ###
-
-    # enable optimizations
-    MLMC_estimator.options[:do_regression] = do_regression
-    MLMC_estimator.options[:continuate] = continuate # perhaps not the best idea, since the runs with different tolerances will be sequential
-    MLMC_estimator.options[:do_mse_slitting] = do_mse_splitting
-    MLMC_estimator.options[:min_splitting] = min_splitting
-    MLMC_estimator.options[:max_splitting] = max_splitting
-
-    # enable output
-    MLMC_estimator.options[:verbose] = verbose
-
-    # actual run
     h = MultilevelEstimators.run(MLMC_estimator, experiment.ϵ)
     info[:tstop] = now()
 
