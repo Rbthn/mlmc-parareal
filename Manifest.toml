@@ -1,8 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.11.2"
+julia_version = "1.11.3"
 manifest_format = "2.0"
-project_hash = "813561a063bac7963da7dc9aa4e702aba0675b94"
+project_hash = "d6a00d800bc4d541f1654f5e7b7e7d6404840d17"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "72af59f5b8f09faee36b4ec48e014a79210f2f4f"
@@ -1315,7 +1315,7 @@ version = "0.2.4"
 deps = ["Dates", "DelimitedFiles", "Distributed", "JLD2", "LinearAlgebra", "Printf", "Random", "SpecialFunctions", "Statistics"]
 path = "dev/MultilevelEstimators.jl"
 uuid = "bc769cb7-f249-5bba-802a-80f19cb247ec"
-version = "0.1.1"
+version = "0.1.2"
 
 [[deps.NLSolversBase]]
 deps = ["DiffResults", "Distributed", "FiniteDiff", "ForwardDiff"]
