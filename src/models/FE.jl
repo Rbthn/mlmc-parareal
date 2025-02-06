@@ -8,6 +8,7 @@ using LinearAlgebra
 struct FE_Problem{T,U} <: MLMC_Problem{T,U}
     M::AbstractMatrix{U}    # mass matrix
     K::AbstractMatrix{U}    # stiffness matrix
+    dK::AbstractMatrix{U}   # stiffness used: K + ζ*dK
     ndof::Int               # number of unknowns
 
     r::Function             # provides right-hand side value as function of time
@@ -29,6 +30,7 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
         alg=ImplicitEuler(),
         M::AbstractMatrix{U},
         K::AbstractMatrix{U},
+        dK::AbstractMatrix{U},
         r::Function,
         kwargs...
     ) where {T<:AbstractFloat,U<:AbstractFloat}
@@ -43,6 +45,7 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
         new{T,U}(
             M,
             K,
+            dK,
             dims[2],
             r,
             NamedTuple(kwargs),
@@ -57,19 +60,16 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
 end
 
 function instantiate_problem(problem::FE_Problem, ζ)
-    dM = ζ[1]
-
     function rhs!(du, u, p, t)
-        dK = p[2]
+        K = problem.K + p[1] * problem.dK
 
-        K = problem.K + dK
         mul!(du, -K, u)
         du[:] .+= problem.r(t)
         return nothing
     end
 
     # Construct ODEProblem
-    func = ODEFunction(rhs!, mass_matrix=problem.M + dM, jac_prototype=copy(problem.K))
+    func = ODEFunction(rhs!, mass_matrix=problem.M, jac_prototype=copy(problem.K))
     return ODEProblem(
         func,
         problem.u_0,

@@ -29,6 +29,7 @@ end
 # %% load system matrices
 @everywhere begin
     include(joinpath(test_file_location, "K.jl"))    # load K
+    include(joinpath(test_file_location, "K_nu.jl")) # load K_nu
     include(joinpath(test_file_location, "M.jl"))    # load M
     include(joinpath(test_file_location, "rhs_coef.jl"))  # load rhs_coef
 
@@ -65,6 +66,7 @@ p = FE_Problem(
     alg=alg,
     M=M,
     K=K,
+    dK=K_nu,
     r=rhs_fct,
     ode_args...
 )
@@ -74,7 +76,7 @@ p = FE_Problem(
 # %% MLMC
 L = 2
 
-deviations = 0.05 * [norm(K), norm(M)]
+deviations = 0.05 * [1]
 dists = Uniform.(-deviations, deviations)
 
 qoi_fn = (sol) -> norm(sol.u[end])
@@ -106,7 +108,7 @@ for i = 1:nruns
     for l = 0:L
         costs[l+1] = @belapsed begin
             n_params = length($dists)
-            params = transform.($dists, rand(n_params)) #.* [dK, dM]
+            params = transform.($dists, rand(n_params))
             prob = instantiate_problem($p, params)
             sol = DifferentialEquations.solve(
                 prob, $p.alg;
@@ -119,7 +121,7 @@ for i = 1:nruns
     # determine cost on finest level (with parareal)
     cost_para = @belapsed begin
         n_params = length($dists)
-        params = transform.($dists, rand(n_params)) #.* [dK, dM]
+        params = transform.($dists, rand(n_params))
         prob = instantiate_problem($p, params)
         sol, _ = Parareal.solve(
             prob, $p.alg;
