@@ -180,7 +180,7 @@ for i = 1:nruns
     level_times = fill(Inf, L + 1)
 
     # integer divide, round up
-    div_up = (x, y) -> div(x - 1, y) + 1
+    div_up = (x, y) -> ceil(Int, x / y)
 
     seq_runs = div_up.(nb_of_samples, ncores)
 
