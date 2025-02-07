@@ -78,3 +78,7 @@ function instantiate_problem(problem::FE_Problem, ζ)
         problem.solver_args...
     )
 end
+
+function compute_timestep(problem::FE_Problem, level)
+    return problem.Δt_0 / 10^level
+end

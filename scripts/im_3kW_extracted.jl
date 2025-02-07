@@ -19,7 +19,7 @@ end
     # a Julia program and the GetDP .pro file. Hardcoding these values for now.
     freq = 50
     period = 1 / freq
-    nsteps = 100
+    nsteps = 10
     dt = period / nsteps
     t_end = period * 8
 end
@@ -87,8 +87,8 @@ parareal_args = (;
     parareal_intervals=8,
     maxit=3,
     reltol=1e-2,
-    coarse_args=(; dt=10 * dt),
-    fine_args=(; dt=dt),
+    coarse_args=(; dt=dt),
+    fine_args=(;),
     shared_memory=false,
 )
 
