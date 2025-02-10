@@ -172,3 +172,9 @@ end
 # mean reduction in single eval
 mean_reduction_single = mean(1 .- timing[:, 2] ./ timing[:, 1])
 mean_reduction_overall = mean(1 .- timing[:, 4] ./ timing[:, 3])
+
+settings = (; ncores, nruns, L, mlmc_tol, warmup_samples, parareal_args)
+results = (; costs, cost_para, timing, mean_reduction_single, mean_reduction_overall)
+
+name = savename(p.name, settings, "jld2")
+tagsave(datadir("benchmarks", name), struct2dict((; settings, results)))
