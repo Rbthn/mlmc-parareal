@@ -75,12 +75,15 @@ p = FE_Problem(
 
 # %% MLMC
 L = 2
+mlmc_tol = 1e-1
+warmup_samples = 10
 
 deviations = 0.05 * [1]
 dists = Uniform.(-deviations, deviations)
 
-qoi_fn = (sol) -> norm(sol.u[end])
-
+@everywhere function qoi_fn(sol)
+    integrate(sol.t, [abs(e[8]) for e in sol.u], SimpsonEven())
+end
 
 # %% Parareal
 parareal_args = (;
@@ -102,38 +105,39 @@ ncores = 100    # numer of parallel evaluations assumed for benchmark
 # fine cost ref, fine cost para, total cost ref, total cost para
 timing = zeros(nruns, 4)
 
-for i = 1:nruns
-    # determine cost of single eval per level
-    costs = fill(Inf, L + 1)
-    for l = 0:L
-        costs[l+1] = @belapsed begin
-            n_params = length($dists)
-            params = transform.($dists, rand(n_params))
-            prob = instantiate_problem($p, params)
-            sol = DifferentialEquations.solve(
-                prob, $p.alg;
-                dt=compute_timestep($p, $l)
-            )
-            qoi = qoi_fn(sol)
-        end seconds = 10
-    end
-
-    # determine cost on finest level (with parareal)
-    cost_para = @belapsed begin
+# determine cost of single eval per level
+costs = fill(Inf, L + 1)
+for l = 0:L
+    costs[l+1] = @belapsed begin
         n_params = length($dists)
         params = transform.($dists, rand(n_params))
         prob = instantiate_problem($p, params)
-        sol, _ = Parareal.solve(
+        sol = DifferentialEquations.solve(
             prob, $p.alg;
-            dt=compute_timestep($p, $L),
-            parareal_args...
+            dt=compute_timestep($p, $l)
         )
         qoi = qoi_fn(sol)
-    end seconds = 10
+    end seconds = 300
+end
 
+# determine cost on finest level (with parareal)
+cost_para = @belapsed begin
+    n_params = length($dists)
+    params = transform.($dists, rand(n_params))
+    prob = instantiate_problem($p, params)
+    sol, _ = Parareal.solve(
+        prob, $p.alg;
+        dt=compute_timestep($p, $L),
+        parareal_args...
+    )
+    qoi = qoi_fn(sol)
+end seconds = 300
+
+
+for i = 1:nruns
     # run MultilevelEstimators once to determine number of samples per level
     e_ref = MLMC_Experiment(p, qoi_fn, dists,
-        L, 1e-2;
+        L, mlmc_tol;
         use_parareal=false,
         cost_model=(l -> costs[l[1]+1])
     )
@@ -142,7 +146,7 @@ for i = 1:nruns
         continuate=false,
         do_mse_splitting=true,
         min_splitting=0.01,
-        warmup_samples=3
+        warmup_samples=warmup_samples
     )
 
     nb_of_samples = res_ref["history"][:nb_of_samples]
@@ -160,7 +164,7 @@ for i = 1:nruns
     seq_runs = div_up.(nb_of_samples, ncores)
 
     total_cost_ref = sum(seq_runs .* costs)
-    total_cost_para = sum(seq_runs[1:end-1] .* costs[1:end-1]) + div_up.(nb_of_samples[end] * parareal_intervals, ncores) * cost_para
+    total_cost_para = sum(seq_runs[1:end-1] .* costs[1:end-1]) + div_up.(nb_of_samples[end] * parareal_args.parareal_intervals, ncores) * cost_para
 
     timing[i, :] = [costs[end], cost_para, total_cost_ref, total_cost_para]
 end
