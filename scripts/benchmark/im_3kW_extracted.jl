@@ -73,18 +73,6 @@ p = FE_Problem(
 
 
 
-# %% MLMC
-L = 2
-mlmc_tol = 1e-1
-warmup_samples = 10
-
-deviations = 0.05 * [1]
-dists = Uniform.(-deviations, deviations)
-
-@everywhere function qoi_fn(sol)
-    integrate(sol.t, [abs(e[8]) for e in sol.u], SimpsonEven())
-end
-
 # %% Parareal
 parareal_args = (;
     parareal_intervals=8,
@@ -97,10 +85,30 @@ parareal_args = (;
 
 
 
-# %% Benchmark
+# %% MLMC
+L = 2                               # use refinement levels 0, ..., L
+mlmc_tol = 1e-1                     # desired tolerance on RMSE
+warmup_samples = 10                 # number of samples initially evaluated
+run_args = (;
+    continuate=false,
+    do_mse_splitting=true,
+    min_splitting=0.01,
+    warmup_samples=warmup_samples
+)
 
-nruns = 10      # number of runs over which to average
-ncores = 100    # numer of parallel evaluations assumed for benchmark
+deviations = 0.05 * [1]
+dists = Uniform.(-deviations, deviations)
+
+@everywhere function qoi_fn(sol)
+    integrate(sol.t, [abs(e[8]) for e in sol.u], SimpsonEven())
+end
+
+
+
+# %% Benchmark
+nruns = 10                      # number of runs over which to average
+ncores = 100                    # numer of parallel evaluations assumed
+cost_benchmark_time = 300       # cost benchmark length
 
 # fine cost ref, fine cost para, total cost ref, total cost para
 timing = zeros(nruns, 4)
@@ -117,7 +125,7 @@ for l = 0:L
             dt=compute_timestep($p, $l)
         )
         qoi = qoi_fn(sol)
-    end seconds = 300
+    end seconds = cost_benchmark_time
 end
 
 # determine cost on finest level (with parareal)
@@ -131,7 +139,7 @@ cost_para = @belapsed begin
         parareal_args...
     )
     qoi = qoi_fn(sol)
-end seconds = 300
+end seconds = cost_benchmark_time
 
 
 for i = 1:nruns
@@ -143,10 +151,7 @@ for i = 1:nruns
     )
     res_ref = run(
         e_ref;
-        continuate=false,
-        do_mse_splitting=true,
-        min_splitting=0.01,
-        warmup_samples=warmup_samples
+        run_args...
     )
 
     nb_of_samples = res_ref["history"][:nb_of_samples]
@@ -173,7 +178,10 @@ end
 mean_reduction_single = mean(1 .- timing[:, 2] ./ timing[:, 1])
 mean_reduction_overall = mean(1 .- timing[:, 4] ./ timing[:, 3])
 
-settings = (; ncores, nruns, L, mlmc_tol, warmup_samples, parareal_args)
+
+
+# %% save settings, results
+settings = (; ncores, nruns, cost_benchmark_time, L, mlmc_tol, warmup_samples, parareal_args, run_args)
 results = (; costs, cost_para, timing, mean_reduction_single, mean_reduction_overall)
 
 name = savename(p.name, settings, "jld2")
