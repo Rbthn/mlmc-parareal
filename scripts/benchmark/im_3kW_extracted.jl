@@ -17,11 +17,11 @@ end
 
     # currently, there is no clever way to share these parameters between
     # a Julia program and the GetDP .pro file. Hardcoding these values for now.
-    freq = 50
-    period = 1 / freq
-    nsteps = 10
-    dt = period / nsteps
-    t_end = period * 8
+    const freq = 50
+    const period = 1 / freq
+    const nsteps = 10
+    const dt = period / nsteps
+    const t_end = period * 8
 end
 
 
@@ -33,7 +33,7 @@ end
     include(joinpath(test_file_location, "M.jl"))    # load M
     include(joinpath(test_file_location, "rhs_coef.jl"))  # load rhs_coef
 
-    ndof = size(K)[2]
+    const ndof = size(K)[2]
 
     function rhs_ansatz(t)
         [sin(2 * pi * freq * t), sin(2 * pi * freq * t - 2 * pi / 3)]
