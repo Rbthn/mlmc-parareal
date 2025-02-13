@@ -20,9 +20,6 @@ export FE_Problem, instantiate_problem
 include("models/pendulum.jl")
 export Pendulum_Problem, instantiate_problem
 
-include("models/heat_fem.jl")
-export Heat_Problem, instantiate_problem
-
 include("models/steinmetz.jl")
 export Steinmetz_Problem, instantiate_problem, compute_timestep
 
