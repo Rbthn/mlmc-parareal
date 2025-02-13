@@ -100,9 +100,6 @@ for i = 1:nruns
     # needed on that level times the average runtime on that level
     level_times = fill(Inf, L + 1)
 
-    # integer divide, round up
-    div_up = (x, y) -> ceil(Int, x / y)
-
     seq_runs = div_up.(nb_of_samples, ncores)
 
     total_cost_ref = sum(seq_runs .* costs)

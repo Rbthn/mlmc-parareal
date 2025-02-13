@@ -25,5 +25,6 @@ export Steinmetz_Problem, instantiate_problem, compute_timestep
 
 # utilities
 include("utilities.jl")
+export div_up
 
 end
