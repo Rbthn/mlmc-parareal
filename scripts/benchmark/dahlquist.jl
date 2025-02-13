@@ -1,3 +1,11 @@
+# %% dependencies
+@everywhere begin
+    using DifferentialEquations
+    using Parareal
+    using BenchmarkTools
+end
+
+
 # %% prepare problem
 const u_0 = 1.0
 const t_0 = 0.0

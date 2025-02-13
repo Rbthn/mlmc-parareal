@@ -1,10 +1,9 @@
-# %% Packages
+# %% dependencies
 @everywhere begin
     using DifferentialEquations
     using Parareal
     using SparseArrays
     using LinearAlgebra
-
     using BenchmarkTools
 end
 

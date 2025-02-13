@@ -1,17 +1,17 @@
 using Distributed
+
+# precompile on control node
 using MLMC_Parareal
 
-addprocs(10)
+# add workers
+addprocs(N_PROCS)
 
+# precompile on all workers
 @everywhere begin
     using MLMC_Parareal
 end
 
+# load necessary dependencies on all workers
 @everywhere begin
     using DrWatson
-    using DifferentialEquations
-    using MultilevelEstimators
-    using BenchmarkTools
-    using Plots
-    using NumericalIntegration
 end

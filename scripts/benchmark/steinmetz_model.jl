@@ -8,10 +8,13 @@
 # Technische Universität Darmstadt
 # www.temf.de
 
-
-using MLMC_Parareal
-using Parareal
-
+# %% dependencies
+@everywhere begin
+    using DifferentialEquations
+    using Parareal
+    using BenchmarkTools
+    using NumericalIntegration
+end
 
 
 # %% Parameters

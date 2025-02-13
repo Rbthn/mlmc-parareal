@@ -8,6 +8,13 @@
 # Technische Universität Darmstadt
 # www.temf.de
 
+@everywhere begin
+    using DifferentialEquations
+    using Parareal
+    using BenchmarkTools
+    using NumericalIntegration
+end
+
 
 # %% Parameters
 @everywhere begin
