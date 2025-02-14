@@ -136,6 +136,8 @@ dists = Uniform.(-deviations, deviations)
     return e / 1e6
 end
 
+
+
 # %% cost model
 cost_benchmark_time = 10
 costs = fill(Inf, L + 1)
@@ -195,8 +197,15 @@ bench_para = @benchmark run(
 
 
 # %% save settings, results
-settings = (; L, mlmc_tol, warmup_samples, parareal_args, seed=e_ref.seed, benchmark_time, run_args)
-results = (; costs, res_ref, res_para, bench_ref, bench_para)
+settings = (;
+    parareal_args, benchmark_time,
+    L, mlmc_tol, deviations, warmup_samples, seed=e_ref.seed, run_args
+)
+results = (;
+    costs,
+    res_ref, bench_ref,
+    res_para, bench_para
+)
 
 name = savename(p.name, settings, "jld2")
 tagsave(datadir("simulations", name), struct2dict((; settings, results)))

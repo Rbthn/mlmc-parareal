@@ -32,11 +32,11 @@ const parareal_args = (;
 
 
 # %% MLMC
-const deviation = 0.5
-const dists = Uniform(-deviation, deviation)
+const deviation = [0.5]
+const dists = Uniform.(-deviation, deviation)
 const L = 5
 const mlmc_tol = 1e-4
-const warmup_samples = 10
+const warmup_samples = 20
 const qoi_fn = L2_squared
 run_args = (;
     continuate=false,
@@ -115,8 +115,15 @@ mean_reduction_overall = mean(1 .- timing[:, 4] ./ timing[:, 3])
 
 
 # %% save settings, results
-settings = (; ncores, nruns, cost_benchmark_time, L, mlmc_tol, warmup_samples, parareal_args, run_args)
-results = (; costs, cost_para, timing, mean_reduction_single, mean_reduction_overall)
+settings = (;
+    parareal_args,
+    ncores, nruns, cost_benchmark_time,
+    L, mlmc_tol, deviations, warmup_samples, run_args
+)
+results = (;
+    costs, cost_para,
+    timing, mean_reduction_single, mean_reduction_overall
+)
 
 name = savename(p.name, settings, "jld2")
 tagsave(datadir("benchmarks", name), struct2dict((; settings, results)))
