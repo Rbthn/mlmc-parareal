@@ -1,3 +1,4 @@
+using Distributed
 using Dates
 using Random
 using MultilevelEstimators
@@ -102,6 +103,35 @@ function run(
 
 
     ############################################################################
+    ###########################   WORKER MAPPING   #############################
+    ############################################################################
+
+    # calculate ids for worker pools for parallel evaluation in MultilevelEstimators and Parareal
+    if experiment.use_parareal
+        avail_worker_count = nworkers()
+        n_intervals = experiment.parareal_args.parareal_intervals
+
+        # workers()[sample_worker_idx] gives the worker IDs on which samples should be evaluated
+        sample_worker_idx = range(
+            1,
+            length=div(avail_worker_count, n_intervals + 1),
+            step=n_intervals + 1
+        )
+        sample_worker_ids = workers()[sample_worker_idx]
+
+        # parareal_worker_idx(i) gives the worker ids onto which
+        # the fine propagator should be delegated
+        parareal_worker_ids = (i) -> workers()[
+            sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]
+    else
+        sample_worker_ids = workers()
+        parareal_worker_ids = (i) -> []
+    end
+
+    worker_ids = (l) -> l[1] < experiment.L ? workers() : sample_worker_ids
+
+
+    ############################################################################
     ###############################   RUN MLMC   ###############################
     ############################################################################
 
@@ -118,13 +148,14 @@ function run(
     # Outputs:
     - `(ΔQ, Q)`, where `Q` is the QoI obtained from a solution at `level` and `ΔQ` is the difference to the QoI obtained from the solution at the previous level.
     """
-    function sample_function(level::MultilevelEstimators.Level, ζ)
+    function sample_function(level::MultilevelEstimators.Level, ζ, sample_num=-1)
         # MultilevelEstimators uses a multi-index. For MLMC, this index only has one entry.
         l = level[1]
 
         # solve given sample (defined by ζ) on the current level
         sol_current_l, timesteps_current =
-            solve(experiment.problem, experiment.problem.alg, (l, experiment.L), ζ,
+            solve(experiment.problem, experiment.problem.alg,
+                (l, experiment.L), ζ, parareal_worker_ids(sample_num),
                 use_parareal=experiment.use_parareal,
                 parareal_args=experiment.parareal_args; kwargs...)
         # compute corresponding QoI
@@ -138,7 +169,7 @@ function run(
         end
         # solve given sample one level lower
         sol_last_l, timesteps_last =
-            solve(experiment.problem, experiment.problem.alg, (l - 1, experiment.L), ζ,
+            solve(experiment.problem, experiment.problem.alg, (l - 1, experiment.L), ζ, parareal_worker_ids(sample_num),
                 use_parareal=experiment.use_parareal,
                 parareal_args=experiment.parareal_args; kwargs...)
         # compute QoI
@@ -158,6 +189,7 @@ function run(
         sample_function,            # (level, ζ) -> (ΔQ, Q)
         experiment.dist,
         save=false,
+        worker_ids=worker_ids,      # (level) -> workers to distribute samples over
         ### force the use of all levels
         max_index_set_param=experiment.L,
         min_index_set_param=experiment.L,

@@ -31,7 +31,7 @@ abstract type MLMC_Problem{T<:AbstractFloat,U<:AbstractFloat} end
 
     Additional solver arguments (used on all levels) can be passed as `kwargs`.
 """
-function solve(problem::MLMC_Problem, alg, level, ζ;
+function solve(problem::MLMC_Problem, alg, level, ζ, worker_ids=[];
     use_parareal=false,
     parareal_args=(;
         coarse_args=(;),
@@ -67,6 +67,7 @@ function solve(problem::MLMC_Problem, alg, level, ζ;
         sol, _ = Parareal.solve(
             prob,               # problem
             alg;                # timestepping algorithm
+            worker_ids=worker_ids,
             coarse_args=c_args,
             fine_args=f_args,
             kwargs...,
