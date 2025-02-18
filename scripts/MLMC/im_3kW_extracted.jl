@@ -5,6 +5,7 @@
     using SparseArrays
     using LinearAlgebra
     using BenchmarkTools
+    using NumericalIntegration
 end
 
 
