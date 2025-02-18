@@ -92,7 +92,7 @@ parareal_args = (;
 # %% MLMC
 L = 2               # use refinement levels 0, ..., L
 mlmc_tol = 1e-2
-warmup_samples = 3
+warmup_samples = 20
 benchmark_time = 100
 run_args = (;
     continuate=false,

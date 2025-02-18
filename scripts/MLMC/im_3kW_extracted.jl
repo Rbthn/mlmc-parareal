@@ -87,7 +87,7 @@ parareal_args = (;
 # %% MLMC
 L = 2                               # use refinement levels 0, ..., L
 mlmc_tol = 1e-1                     # desired tolerance on RMSE
-warmup_samples = 10                 # number of samples initially evaluated
+warmup_samples = 20                 # number of samples initially evaluated
 benchmark_time = 1000
 run_args = (;
     continuate=false,
