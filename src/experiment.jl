@@ -121,8 +121,8 @@ function run(
 
         # parareal_worker_idx(i) gives the worker ids onto which
         # the fine propagator should be delegated
-        parareal_worker_ids = (i) -> workers()[
-            sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]
+        parareal_worker_ids = (i) -> workers()[[
+            sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]]
     else
         sample_worker_ids = workers()
         parareal_worker_ids = (i) -> []
