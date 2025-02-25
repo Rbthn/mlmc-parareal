@@ -17,9 +17,6 @@ export Dahlquist_Problem, instantiate_problem
 include("models/FE.jl")
 export FE_Problem, instantiate_problem
 
-include("models/pendulum.jl")
-export Pendulum_Problem, instantiate_problem
-
 include("models/steinmetz.jl")
 export Steinmetz_Problem, instantiate_problem, compute_timestep
 
