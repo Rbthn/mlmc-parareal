@@ -141,7 +141,7 @@ end
 # %% Benchmark
 nruns = 10                      # number of runs over which to average savings
 ncores = 100                    # number of parallel evaluations assumed
-cost_benchmark_time = 10        # cost benchmark length
+cost_benchmark_time = 30        # cost benchmark length
 
 # fine cost ref, fine cost para, total cost ref, total cost para
 timing = zeros(nruns, 4)
