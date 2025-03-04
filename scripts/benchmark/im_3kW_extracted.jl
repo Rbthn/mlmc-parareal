@@ -17,23 +17,29 @@ end
 
     # currently, there is no clever way to share these parameters between
     # a Julia program and the GetDP .pro file. Hardcoding these values for now.
-    const freq = 50
-    const period = 1 / freq
-    const nsteps = 10
-    const dt = period / nsteps
-    const t_end = period * 8
+    const freq = 50             # frequency of the excitation
+    const period = 1 / freq     # period length
+    const nsteps = 100          # number of timesteps per period
+    const nperiods = 8          # number of periods
+    const dt = period / nsteps  # time step
+    const t_0 = 0.0             # start time
+    const t_end = period * nperiods # stop time
+    const sigma_nom = 26.7e6    # nominal conductivity
+    const num_bars = 32         # number of rotor bars
 end
 
 
 
 # %% load system matrices
 @everywhere begin
-    include(joinpath(test_file_location, "K.jl"))    # load K
-    include(joinpath(test_file_location, "K_nu.jl")) # load K_nu
-    include(joinpath(test_file_location, "M.jl"))    # load M
-    include(joinpath(test_file_location, "rhs_coef.jl"))  # load rhs_coef
+    include(joinpath(test_file_location, "K.jl"))       # load K
+    include(joinpath(test_file_location, "M_const.jl")) # load M_const
+    include(joinpath(test_file_location, "M_diffs.jl")) # load M_diffs
+    include(joinpath(test_file_location, "rhs_coef.jl"))# load rhs_coef
 
     const ndof = size(K)[2]
+    # indices in sol.u that belong to vector potential
+    const a_dofs = collect(39:ndof)
 
     function rhs_ansatz(t)
         [sin(2 * pi * freq * t), sin(2 * pi * freq * t - 2 * pi / 3)]
@@ -55,18 +61,19 @@ alg = ImplicitEuler()
 ode_args = (;
     dt=dt,
     adaptive=false,
-    saveat=1e-3
+    saveat=dt,
 )
+
+@everywhere M_fct = (p) -> M_const + sum(M_diffs .* p)
 
 p = FE_Problem(
     zeros(ndof),
-    0.0,
+    t_0,
     t_end,
     dt;
     alg=alg,
-    M=M,
+    M=M_fct,
     K=K,
-    dK=K_nu,
     r=rhs_fct,
     ode_args...
 )
@@ -96,13 +103,21 @@ run_args = (;
     warmup_samples=warmup_samples
 )
 
-deviations = 0.05 * [1]
-dists = Uniform.(-deviations, deviations)
+deviations = 0.05 * sigma_nom * ones(num_bars)
+dists = Uniform.(sigma_nom .- deviations, sigma_nom .+ deviations)
 
 @everywhere function qoi_fn(sol)
-    integrate(sol.t, [abs(e[8]) for e in sol.u], SimpsonEven())
-end
+    # \dot a^T M_sigma \dot a
+    M_sigma = M_fct(sol.prob.p) - M_const
 
+    a_dot = [zeros(ndof) for _ in 1:length(sol.t)]
+    for k in 1:length(sol.t)-1
+        a_dot[k+1] = (sol.u[k+1] - sol.u[k]) / (sol.t[k+1] - sol.t[k])
+    end
+    loss = [a_dot[k][a_dofs]' * M_sigma[a_dofs, a_dofs] * a_dot[k][a_dofs] for k in 1:length(sol.t)]
+
+    integrate(sol.t, loss, SimpsonEven()) / (sol.t[end] - sol.t[1])
+end
 
 
 # %% Benchmark
