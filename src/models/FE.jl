@@ -6,9 +6,8 @@ using LinearAlgebra
     FE problem with constant mass, stiffness matrices given as Mx' + Kx = r.
 """
 struct FE_Problem{T,U} <: MLMC_Problem{T,U}
-    M::AbstractMatrix{U}    # mass matrix
-    K::AbstractMatrix{U}    # stiffness matrix
-    dK::AbstractMatrix{U}   # stiffness used: K + ζ*dK
+    M::Function             # parameters -> mass matrix
+    K::Function             # parameters -> stiffness matrix
     ndof::Int               # number of unknowns
 
     r::Function             # provides right-hand side value as function of time
@@ -28,25 +27,38 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
         t_end::T,
         Δt_0::T;
         alg=ImplicitEuler(),
-        M::AbstractMatrix{U},
-        K::AbstractMatrix{U},
-        dK::AbstractMatrix{U},
+        M::Union{AbstractMatrix{U},Function},
+        K::Union{AbstractMatrix{U},Function},
         r::Function,
         kwargs...
     ) where {T<:AbstractFloat,U<:AbstractFloat}
         # validate time interval
         @assert t_0 <= t_end
 
-        # make sure system dimensions make sense
-        dims = size(M)
-        @assert dims == size(K)
-        @assert dims[2] == length(u_0)
+        ndof = length(u_0)
+
+        # convert matrices to functions if necessary
+        if M isa AbstractMatrix
+            # make sure system dimensions make sense
+            @assert size(M) == (ndof, ndof)
+
+            M_f = (p...) -> M
+        else
+            M_f = M
+        end
+        if K isa AbstractMatrix
+            # make sure system dimensions make sense
+            @assert size(K) == (ndof, ndof)
+
+            K_f = (p...) -> K
+        else
+            K_f = K
+        end
 
         new{T,U}(
-            M,
-            K,
-            dK,
-            dims[2],
+            M_f,
+            K_f,
+            ndof,
             r,
             NamedTuple(kwargs),
             u_0,
@@ -60,8 +72,9 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
 end
 
 function instantiate_problem(problem::FE_Problem, ζ)
+    M = problem.M(ζ)
     function rhs!(du, u, p, t)
-        K = problem.K + p[1] * problem.dK
+        K = problem.K(p)
 
         mul!(du, -K, u)
         du[:] .+= problem.r(t)
@@ -69,7 +82,7 @@ function instantiate_problem(problem::FE_Problem, ζ)
     end
 
     # Construct ODEProblem
-    func = ODEFunction(rhs!, mass_matrix=problem.M, jac_prototype=copy(problem.K))
+    func = ODEFunction(rhs!, mass_matrix=M, jac_prototype=problem.K(zero(ζ)))
     return ODEProblem(
         func,
         problem.u_0,
