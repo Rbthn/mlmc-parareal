@@ -73,16 +73,15 @@ end
 
 function instantiate_problem(problem::FE_Problem, ζ)
     M = problem.M(ζ)
-    function rhs!(du, u, p, t)
-        K = problem.K(p)
-
+    K = problem.K(ζ)
+    function rhs!(du, u, ζ, t)
         mul!(du, -K, u)
         du[:] .+= problem.r(t)
         return nothing
     end
 
     # Construct ODEProblem
-    func = ODEFunction(rhs!, mass_matrix=M, jac_prototype=problem.K(zero(ζ)))
+    func = ODEFunction(rhs!, mass_matrix=M, jac_prototype=copy(K))
     return ODEProblem(
         func,
         problem.u_0,
