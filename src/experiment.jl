@@ -81,6 +81,7 @@ function run(
     do_regression=true,
     min_splitting=0.5,
     max_splitting=0.99,
+    worker_ids=workers(),
     kwargs...
 )
     ############################################################################
@@ -108,7 +109,7 @@ function run(
 
     # calculate ids for worker pools for parallel evaluation in MultilevelEstimators and Parareal
     if experiment.use_parareal
-        avail_worker_count = nworkers()
+        avail_worker_count = length(worker_ids)
         n_intervals = experiment.parareal_args.parareal_intervals
 
         # workers()[sample_worker_idx] gives the worker IDs on which samples should be evaluated
@@ -117,18 +118,19 @@ function run(
             length=div(avail_worker_count, n_intervals + 1),
             step=n_intervals + 1
         )
-        sample_worker_ids = workers()[sample_worker_idx]
+        sample_worker_ids = worker_ids[sample_worker_idx]
 
         # parareal_worker_idx(i) gives the worker ids onto which
         # the fine propagator should be delegated
-        parareal_worker_ids = (i) -> workers()[[
-            sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]]
+        parareal_worker_ids = (i) -> worker_ids[
+            [sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]
+        ]
     else
-        sample_worker_ids = workers()
+        sample_worker_ids = worker_ids
         parareal_worker_ids = (i) -> []
     end
 
-    worker_ids = (l) -> l[1] < experiment.L ? workers() : sample_worker_ids
+    worker_id_fct = (l) -> l[1] < experiment.L ? worker_ids : sample_worker_ids
 
 
     ############################################################################
@@ -189,7 +191,7 @@ function run(
         sample_function,            # (level, ζ) -> (ΔQ, Q)
         experiment.dist,
         save=false,
-        worker_ids=worker_ids,      # (level) -> workers to distribute samples over
+        worker_ids=worker_id_fct,   # (level) -> workers to distribute samples over
         ### force the use of all levels
         max_index_set_param=experiment.L,
         min_index_set_param=experiment.L,
