@@ -119,8 +119,8 @@ function run(
         # workers()[sample_worker_idx] gives the worker IDs on which samples should be evaluated
         sample_worker_idx = range(
             1,
-            length=div(avail_worker_count, n_intervals + 1),
-            step=n_intervals + 1
+            length=div(avail_worker_count, n_intervals),
+            step=n_intervals
         )
         sample_worker_ids = worker_ids[sample_worker_idx]
 
@@ -132,7 +132,7 @@ function run(
         # parareal_worker_idx(i) gives the worker ids onto which
         # the fine propagator should be delegated
         parareal_worker_ids = (i) -> worker_ids[
-            [sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]
+            [sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals-1]
         ]
     else
         sample_worker_ids = all_sample_worker_ids
