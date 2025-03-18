@@ -108,6 +108,10 @@ function run(
     ############################################################################
 
     # calculate ids for worker pools for parallel evaluation in MultilevelEstimators and Parareal
+
+    all_sample_worker_ids = worker_ids
+    all_parareal_worker_ids = (i) -> []
+
     if experiment.use_parareal
         avail_worker_count = length(worker_ids)
         n_intervals = experiment.parareal_args.parareal_intervals
@@ -120,17 +124,25 @@ function run(
         )
         sample_worker_ids = worker_ids[sample_worker_idx]
 
+        if n_intervals == 1
+            sample_worker_ids = all_sample_worker_ids
+            parareal_worker_ids = all_parareal_worker_ids
+        end
+
         # parareal_worker_idx(i) gives the worker ids onto which
         # the fine propagator should be delegated
         parareal_worker_ids = (i) -> worker_ids[
             [sample_worker_idx[(i-1)%length(sample_worker_idx)+1] + k for k = 1:n_intervals]
         ]
     else
-        sample_worker_ids = worker_ids
-        parareal_worker_ids = (i) -> []
+        sample_worker_ids = all_sample_worker_ids
+        parareal_worker_ids = all_parareal_worker_ids
     end
 
-    worker_id_fct = (l) -> l[1] < experiment.L ? worker_ids : sample_worker_ids
+
+    worker_id_fct = (l) -> l[1] < experiment.L ? all_sample_worker_ids : sample_worker_ids
+
+    parareal_id_fct = (l) -> l[1] < experiment.L ? all_parareal_worker_ids : parareal_worker_ids
 
 
     ############################################################################
@@ -157,7 +169,7 @@ function run(
         # solve given sample (defined by ζ) on the current level
         sol_current_l, timesteps_current =
             solve(experiment.problem, experiment.problem.alg,
-                (l, experiment.L), ζ, parareal_worker_ids(sample_num),
+                (l, experiment.L), ζ, parareal_id_fct(l)(sample_num),
                 use_parareal=experiment.use_parareal,
                 parareal_args=experiment.parareal_args; kwargs...)
         # compute corresponding QoI
@@ -171,7 +183,7 @@ function run(
         end
         # solve given sample one level lower
         sol_last_l, timesteps_last =
-            solve(experiment.problem, experiment.problem.alg, (l - 1, experiment.L), ζ, parareal_worker_ids(sample_num),
+            solve(experiment.problem, experiment.problem.alg, (l - 1, experiment.L), ζ, parareal_id_fct(l - 1)(sample_num),
                 use_parareal=experiment.use_parareal,
                 parareal_args=experiment.parareal_args; kwargs...)
         # compute QoI
