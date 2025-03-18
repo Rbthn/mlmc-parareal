@@ -94,7 +94,7 @@ parareal_args = (;
 
 # %% MLMC
 L = 2                               # use refinement levels 0, ..., L
-mlmc_tol = 1e-1                     # desired tolerance on RMSE
+mlmc_tol = 10                       # desired tolerance on RMSE
 warmup_samples = 20                 # number of samples initially evaluated
 benchmark_time = 1000
 run_args = (;
@@ -117,8 +117,9 @@ dists = Uniform.(sigma_nom .- deviations, sigma_nom .+ deviations)
     end
     loss = [a_dot[k][a_dofs]' * M_sigma[a_dofs, a_dofs] * a_dot[k][a_dofs] for k in 1:length(sol.t)]
 
+    half_point = div(length(sol.t), 2) + 1
 
-    integrate(sol.t, loss, SimpsonEven()) / (sol.t[end] - sol.t[1])
+    integrate(sol.t[half_point:end], loss[half_point:end], SimpsonEven()) / (sol.t[end] - sol.t[half_point])
 end
 
 
