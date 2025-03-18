@@ -92,7 +92,6 @@ parareal_args = (;
 L = 2               # use refinement levels 0, ..., L
 mlmc_tol = 2e-4
 warmup_samples = 10
-benchmark_time = 100
 run_args = (;
     continuate=false,
     do_mse_splitting=true,
@@ -138,7 +137,7 @@ end
 
 
 # %% cost model
-cost_benchmark_time = 10
+cost_benchmark_time = 60
 costs = fill(Inf, L + 1)
 for l = 0:L
     costs[l+1] = @belapsed begin
@@ -258,13 +257,20 @@ plot!(plt, ncores, runtimes_para,
 
 
 # %% save settings, results
+name_params = (;
+    seed,
+    warmup_samples
+)
 settings = (;
-    parareal_args, cost_benchmark_time,
-    L, mlmc_tol, deviations, warmup_samples, seed, run_args, ncores
+    ode_args, parareal_args, run_args,
+    L, mlmc_tol, deviations, warmup_samples, seed, ncores,
+    cost_benchmark_time, run_benchmark_time
 )
 results = (;
-    runtimes_ref, runtimes_para, costs, cost_para,
+    costs, cost_para,
+    runtimes_ref, runtimes_para,
 )
 
-#name = savename(p.name, settings, "jld2")
-#tagsave(datadir("simulations", name), struct2dict((; settings, results)))
+name = savename("Strong_Scaling_" * p.name, name_params)
+tagsave(datadir("benchmarks", name * ".jld2"), struct2dict((; settings, results)), storepatch=true)
+savefig(plt, datadir("benchmarks", name * ".png"))
