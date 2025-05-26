@@ -43,7 +43,8 @@ struct MLMC_Experiment
     ###     Julia (minor) version updates.
     ###     Also see https://docs.julialang.org/en/v1/stdlib/Random/#Reproducibility
     function MLMC_Experiment(
-        problem::MLMC_Problem, qoi::Function,
+        problem::MLMC_Problem,
+        qoi::Function,
         dist, L=2, ϵ=1e-3;
         seed=rand(UInt),
         use_parareal=false,
@@ -58,7 +59,8 @@ struct MLMC_Experiment
         end
 
         return new(
-            problem, qoi,
+            problem,
+            qoi,
             seed, dist, L, ϵ,
             use_parareal,
             parareal_args,
@@ -141,8 +143,7 @@ function run(
 
 
     worker_id_fct = (l) -> l[1] < experiment.L ? all_sample_worker_ids : sample_worker_ids
-
-    parareal_id_fct = (l) -> l[1] < experiment.L ? all_parareal_worker_ids : parareal_worker_ids
+    parareal_id_fct = (l, sample_num) -> l < experiment.L ? all_parareal_worker_ids(sample_num) : parareal_worker_ids(sample_num)
 
 
     ############################################################################
@@ -162,45 +163,40 @@ function run(
     # Outputs:
     - `(ΔQ, Q)`, where `Q` is the QoI obtained from a solution at `level` and `ΔQ` is the difference to the QoI obtained from the solution at the previous level.
     """
-    function sample_function(level::MultilevelEstimators.Level, ζ, sample_num=-1)
+    function sample_fn(level::MultilevelEstimators.Level, ζ, sample_num=-1)
         # MultilevelEstimators uses a multi-index. For MLMC, this index only has one entry.
         l = level[1]
 
         # solve given sample (defined by ζ) on the current level
-        sol_current_l, timesteps_current =
-            solve(experiment.problem, experiment.problem.alg,
-                (l, experiment.L), ζ, parareal_id_fct(l)(sample_num),
-                use_parareal=experiment.use_parareal,
-                parareal_args=experiment.parareal_args; kwargs...)
-        # compute corresponding QoI
-        qoi_current_l = experiment.qoi(sol_current_l)
+        sol_current = solve(
+            experiment.problem, experiment.problem.alg,
+            (l, experiment.L), ζ, parareal_id_fct(l, sample_num),
+            use_parareal=experiment.use_parareal,
+            parareal_args=experiment.parareal_args; kwargs...)
+        qoi_current = experiment.qoi(sol_current)
 
         if l == 0
-            # update timesteps
-            total_timesteps[l+1] += timesteps_current[1]
-            sequential_timesteps[l+1] = max(sequential_timesteps[l+1], timesteps_current[2])
-            return qoi_current_l, qoi_current_l
+            return qoi_current, qoi_current
         end
         # solve given sample one level lower
-        sol_last_l, timesteps_last =
-            solve(experiment.problem, experiment.problem.alg, (l - 1, experiment.L), ζ, parareal_id_fct(l - 1)(sample_num),
-                use_parareal=experiment.use_parareal,
-                parareal_args=experiment.parareal_args; kwargs...)
-        # compute QoI
-        qoi_last_l = experiment.qoi(sol_last_l)
-        qoi_diff = qoi_current_l - qoi_last_l
+        # pass parareal arguments to solve.
+        # Usually parareal should only be used for l==L,
+        # but we'll let the Problem decide.
+        sol_last = solve(
+            experiment.problem, experiment.problem.alg,
+            (l - 1, experiment.L), ζ, parareal_id_fct(l - 1, sample_num),
+            use_parareal=experiment.use_parareal,
+            parareal_args=experiment.parareal_args; kwargs...)
+        qoi_last = experiment.qoi(sol_last)
 
-        # update timesteps
-        total_timesteps[l+1] += timesteps_current[1] + timesteps_last[1]
-        sequential_timesteps[l+1] = max(sequential_timesteps[l+1], timesteps_current[2] + timesteps_last[2]) # for a given sample, solutions for l and l-1 are currently done sequentially
-
-        return qoi_diff, qoi_current_l
+        qoi_diff = qoi_current - qoi_last
+        return qoi_diff, qoi_current
     end
 
     MLMC_estimator = MultilevelEstimators.Estimator(
         MultilevelEstimators.ML(),  # Multilevel index set
         MultilevelEstimators.MC(),  # Monte-Carlo sampling
-        sample_function,            # (level, ζ) -> (ΔQ, Q)
+        sample_fn,                  # (level, ζ) -> (ΔQ, Q)
         experiment.dist,
         save=false,
         worker_ids=worker_id_fct,   # (level) -> workers to distribute samples over
@@ -242,7 +238,6 @@ function run(
         "settings" => settings,
         "info" => info,
         "history" => h[1],
-        "timesteps" => [sum(total_timesteps), maximum(sequential_timesteps)] # assuming all samples of all levels are evaluated in parallel, which they currently aren't
     )
 
     return d

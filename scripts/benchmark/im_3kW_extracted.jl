@@ -55,46 +55,55 @@ end
 
 
 # %% prepare Problem
+@everywhere begin
 
-alg = ImplicitEuler()
+    alg = ImplicitEuler()
 
-ode_args = (;
-    dt=dt,
-    adaptive=false,
-    saveat=dt,
-)
+    ode_args = (;
+        adaptive=false,
+        saveat=dt / 100,
+    )
 
-@everywhere M_fct = (p) -> M_const + sum(M_diffs .* p)
+    M_fct = (p) -> getproperty(Main, :M_const) + sum(getproperty(Main, :M_diffs) .* p)
 
-p = FE_Problem(
-    zeros(ndof),
-    t_0,
-    t_end,
-    dt;
-    alg=alg,
-    M=M_fct,
-    K=K,
-    r=rhs_fct,
-    ode_args...
-)
+    p = FE_Problem(
+        zeros(ndof),
+        t_0,
+        t_end,
+        dt;
+        alg=alg,
+        M=M_fct,
+        K=:K,
+        r=rhs_fct,
+        ode_args...
+    )
 
+    function qoi_fn(sol)
+        # compute QoI: \int \dot a^T M_\sigma \dot a dt
+        M_sigma = sum(M_diffs .* sol.prob.p)
+        a_dot = [zeros(ndof) for _ in 1:length(sol.t)]
+        for k in 1:length(sol.t)-1
+            a_dot[k+1] = (sol.u[k+1] - sol.u[k]) / (sol.t[k+1] - sol.t[k])
+        end
+        loss = [a_dot[k][a_dofs]' * M_sigma[a_dofs, a_dofs] * a_dot[k][a_dofs] for k in 1:length(sol.t)]
+        qoi = integrate(sol.t, loss, SimpsonEven()) / (sol.t[end] - sol.t[1]) / 1000
 
+        return qoi
+    end
+end
 
 # %% Parareal
 parareal_args = (;
-    parareal_intervals=8,
-    maxit=3,
-    reltol=1e-2,
+    parareal_intervals=16,
+    reltol=1e-3,
     coarse_args=(; dt=dt),
     fine_args=(;),
     shared_memory=false,
 )
 
-
-
 # %% MLMC
 L = 2                               # use refinement levels 0, ..., L
-mlmc_tol = 1e-1                     # desired tolerance on RMSE
+mlmc_tol = 1e-2                     # desired tolerance on RMSE
 warmup_samples = 10                 # number of samples initially evaluated
 run_args = (;
     continuate=false,
@@ -105,19 +114,6 @@ run_args = (;
 
 deviations = 0.05 * sigma_nom * ones(num_bars)
 dists = Uniform.(sigma_nom .- deviations, sigma_nom .+ deviations)
-
-@everywhere function qoi_fn(sol)
-    # \dot a^T M_sigma \dot a
-    M_sigma = M_fct(sol.prob.p) - M_const
-
-    a_dot = [zeros(ndof) for _ in 1:length(sol.t)]
-    for k in 1:length(sol.t)-1
-        a_dot[k+1] = (sol.u[k+1] - sol.u[k]) / (sol.t[k+1] - sol.t[k])
-    end
-    loss = [a_dot[k][a_dofs]' * M_sigma[a_dofs, a_dofs] * a_dot[k][a_dofs] for k in 1:length(sol.t)]
-
-    integrate(sol.t, loss, SimpsonEven()) / (sol.t[end] - sol.t[1])
-end
 
 
 # %% Benchmark
@@ -134,11 +130,8 @@ for l = 0:L
     costs[l+1] = @belapsed begin
         n_params = length($dists)
         params = transform.($dists, rand(n_params))
-        prob = instantiate_problem($p, params)
-        sol = DifferentialEquations.solve(
-            prob, $p.alg;
-            dt=compute_timestep($p, $l)
-        )
+
+        sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=false)
         qoi = qoi_fn(sol)
     end seconds = cost_benchmark_time
 end
@@ -147,19 +140,16 @@ end
 cost_para = @belapsed begin
     n_params = length($dists)
     params = transform.($dists, rand(n_params))
-    prob = instantiate_problem($p, params)
-    sol, _ = Parareal.solve(
-        prob, $p.alg;
-        dt=compute_timestep($p, $L),
-        parareal_args...
-    )
+
+    sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=true, parareal_args=$parareal_args)
     qoi = qoi_fn(sol)
 end seconds = cost_benchmark_time
 
 
 for i = 1:nruns
     # run MultilevelEstimators once to determine number of samples per level
-    e_ref = MLMC_Experiment(p, qoi_fn, dists,
+    e_ref = MLMC_Experiment(p,
+        qoi_fn, dists,
         L, mlmc_tol;
         use_parareal=false,
         cost_model=(l -> costs[l[1]+1])
@@ -194,9 +184,15 @@ mean_reduction_overall = mean(1 .- timing[:, 4] ./ timing[:, 3])
 
 # %% save settings, results
 settings = (;
+    freq, period,
+    nsteps, nperiods,
+    dt, t_0, t_end,
+    sigma_nom, num_bars,
+    ndof, a_dofs,
+    alg, ode_args,
     parareal_args,
     ncores, nruns, cost_benchmark_time,
-    L, mlmc_tol, deviations, warmup_samples, run_args
+    L, mlmc_tol, deviations, warmup_samples, e_ref.seed, run_args
 )
 results = (;
     costs, cost_para,

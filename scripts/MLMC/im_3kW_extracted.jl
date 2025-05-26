@@ -55,47 +55,55 @@ end
 
 
 # %% prepare Problem
+@everywhere begin
+    alg = ImplicitEuler()
 
-alg = ImplicitEuler()
+    ode_args = (;
+        adaptive=false,
+        saveat=dt / 100,
+    )
 
-ode_args = (;
-    dt=dt,
-    adaptive=false,
-    saveat=dt,
-)
+    M_fct = (p) -> getproperty(Main, :M_const) + sum(getproperty(Main, :M_diffs) .* p)
 
-@everywhere M_fct = (p) -> M_const + sum(M_diffs .* p)
+    p = FE_Problem(
+        zeros(ndof),
+        t_0,
+        t_end,
+        dt;
+        alg=alg,
+        M=M_fct,
+        K=:K,
+        r=rhs_fct,
+        ode_args...
+    )
 
-p = FE_Problem(
-    zeros(ndof),
-    t_0,
-    t_end,
-    dt;
-    alg=alg,
-    M=M_fct,
-    K=K,
-    r=rhs_fct,
-    ode_args...
-)
+    function qoi_fn(sol)
+        # compute QoI: \int \dot a^T M_\sigma \dot a dt
+        M_sigma = sum(M_diffs .* sol.prob.p)
+        a_dot = [zeros(ndof) for _ in 1:length(sol.t)]
+        for k in 1:length(sol.t)-1
+            a_dot[k+1] = (sol.u[k+1] - sol.u[k]) / (sol.t[k+1] - sol.t[k])
+        end
+        loss = [a_dot[k][a_dofs]' * M_sigma[a_dofs, a_dofs] * a_dot[k][a_dofs] for k in 1:length(sol.t)]
+        qoi = integrate(sol.t, loss, SimpsonEven()) / (sol.t[end] - sol.t[1]) / 1000
 
-
+        return qoi
+    end
+end
 
 # %% Parareal
 parareal_args = (;
-    parareal_intervals=8,
-    maxit=3,
-    reltol=1e-2,
+    parareal_intervals=16,
+    reltol=1e-3,
     coarse_args=(; dt=dt),
     fine_args=(;),
     shared_memory=false,
 )
 
-
-
 # %% MLMC
 L = 2                               # use refinement levels 0, ..., L
-mlmc_tol = 1e-1                     # desired tolerance on RMSE
-warmup_samples = 20                 # number of samples initially evaluated
+mlmc_tol = 1e-2                     # desired tolerance on RMSE
+warmup_samples = 10                 # number of samples initially evaluated
 benchmark_time = 1000
 run_args = (;
     continuate=false,
@@ -107,20 +115,6 @@ run_args = (;
 deviations = 0.05 * sigma_nom * ones(num_bars)
 dists = Uniform.(sigma_nom .- deviations, sigma_nom .+ deviations)
 
-@everywhere function qoi_fn(sol)
-    # \dot a^T M_sigma \dot a
-    M_sigma = M_fct(sol.prob.p) - M_const
-
-    a_dot = [zeros(ndof) for _ in 1:length(sol.t)]
-    for k in 1:length(sol.t)-1
-        a_dot[k+1] = (sol.u[k+1] - sol.u[k]) / (sol.t[k+1] - sol.t[k])
-    end
-    loss = [a_dot[k][a_dofs]' * M_sigma[a_dofs, a_dofs] * a_dot[k][a_dofs] for k in 1:length(sol.t)]
-
-
-    integrate(sol.t, loss, SimpsonEven()) / (sol.t[end] - sol.t[1])
-end
-
 
 # %% cost model
 cost_benchmark_time = 300       # cost benchmark length
@@ -130,15 +124,20 @@ for l = 0:L
     costs[l+1] = @belapsed begin
         n_params = length($dists)
         params = transform.($dists, rand(n_params))
-        prob = instantiate_problem($p, params)
-        sol = DifferentialEquations.solve(
-            prob, $p.alg;
-            dt=compute_timestep($p, $l)
-        )
+
+        sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=false)
         qoi = qoi_fn(sol)
     end seconds = cost_benchmark_time
 end
 
+# determine cost on finest level (with parareal)
+cost_para = @belapsed begin
+    n_params = length($dists)
+    params = transform.($dists, rand(n_params))
+
+    sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=true, parareal_args=$parareal_args)
+    qoi = qoi_fn(sol)
+end seconds = cost_benchmark_time
 
 
 # %% MLMC without Parareal
@@ -147,18 +146,10 @@ e_ref = MLMC_Experiment(p, qoi_fn, dists,
     use_parareal=false,
     cost_model=(l -> costs[l[1]+1]),
 )
-@time res_ref = run(
+time_ref = @elapsed res_ref = run(
     e_ref;
     run_args...,
 )
-
-bench_ref = @benchmark run(
-    e_ref;
-    run_args...,
-    verbose=false,
-) seconds = benchmark_time
-
-
 
 # %% MLMC with Parareal
 e_para = MLMC_Experiment(p, qoi_fn, dists,
@@ -168,28 +159,27 @@ e_para = MLMC_Experiment(p, qoi_fn, dists,
     parareal_args=parareal_args,
     cost_model=(l -> costs[l[1]+1]),
 )
-@time res_para = run(
+time_para = @elapsed res_para = run(
     e_para;
     run_args...,
 )
-
-bench_para = @benchmark run(
-    e_para;
-    run_args...,
-    verbose=false,
-) seconds = benchmark_time
-
 
 
 # %% save settings, results
 settings = (;
-    parareal_args, benchmark_time,
+    freq, period,
+    nsteps, nperiods,
+    dt, t_0, t_end,
+    sigma_nom, num_bars,
+    ndof, a_dofs,
+    alg, ode_args,
+    parareal_args, benchmark_time, N_PROCS,
     L, mlmc_tol, deviations, warmup_samples, seed=e_ref.seed, run_args
 )
 results = (;
-    costs,
-    res_ref, bench_ref,
-    res_para, bench_para
+    costs, cost_para,
+    res_ref, time_ref,
+    res_para, time_para
 )
 
 name = savename(p.name, settings, "jld2")

@@ -42,7 +42,7 @@ function solve(problem::MLMC_Problem, alg, level, ζ, worker_ids=[];
     l, L = level
 
     prob = instantiate_problem(problem, ζ)
-    if !use_parareal
+    if !use_parareal || l < L
         # Don't use Parareal
         dt = compute_timestep(problem, l)
         sol = DifferentialEquations.solve(
@@ -51,16 +51,8 @@ function solve(problem::MLMC_Problem, alg, level, ζ, worker_ids=[];
             dt=dt,              # timestep
             kwargs...           # additional keyword-args for solver
         )
-        timesteps = sol.stats.nsolve
-        return sol, [timesteps, timesteps]
+        return sol
     else
-        # override parareal intervals with 1 unless on finest level
-        if l < L
-            extra_args = (; parareal_intervals=1)
-        else
-            extra_args = (;)
-        end
-
         dt_fine = compute_timestep(problem, l)
         dt_coarse = compute_timestep(problem, 0)    # using very coarse timestep
 
@@ -79,10 +71,9 @@ function solve(problem::MLMC_Problem, alg, level, ζ, worker_ids=[];
             fine_args=f_args,
             kwargs...,
             parareal_args...,
-            extra_args...
         )
 
-        return sol, [sol.stats.nsolve, sol.stats.nsolve]
+        return sol
     end
 end
 

@@ -27,8 +27,8 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
         t_end::T,
         Δt_0::T;
         alg=ImplicitEuler(),
-        M::Union{AbstractMatrix{U},Function},
-        K::Union{AbstractMatrix{U},Function},
+        M::Union{AbstractMatrix{U},Function,Symbol},
+        K::Union{AbstractMatrix{U},Function,Symbol},
         r::Function,
         kwargs...
     ) where {T<:AbstractFloat,U<:AbstractFloat}
@@ -37,22 +37,36 @@ struct FE_Problem{T,U} <: MLMC_Problem{T,U}
 
         ndof = length(u_0)
 
-        # convert matrices to functions if necessary
-        if M isa AbstractMatrix
+
+        if M isa Symbol
+            # load global variable if given as Symbol
+            M_f = (p...) -> getproperty(Main, M)
+
+        elseif M isa AbstractMatrix
+            # convert matrices to functions if necessary
             # make sure system dimensions make sense
             @assert size(M) == (ndof, ndof)
 
             M_f = (p...) -> M
-        else
+        elseif M isa Function
             M_f = M
+        else
+            error("unexpected type for M: $(typeof(M))")
         end
-        if K isa AbstractMatrix
+
+        if K isa Symbol
+            # load global variable if given as Symbol
+            K_f = (p...) -> getproperty(Main, K)
+
+        elseif K isa AbstractMatrix
             # make sure system dimensions make sense
             @assert size(K) == (ndof, ndof)
 
             K_f = (p...) -> K
-        else
+        elseif K isa Function
             K_f = K
+        else
+            error("unexpected type for K: $(typeof(K))")
         end
 
         new{T,U}(
@@ -75,13 +89,18 @@ function instantiate_problem(problem::FE_Problem, ζ)
     M = problem.M(ζ)
     K = problem.K(ζ)
     function rhs!(du, u, ζ, t)
-        mul!(du, -K, u)
+        mul!(du, K, -u)
         du[:] .+= problem.r(t)
         return nothing
     end
 
+    function jac!(J, u, ζ, t)
+        mul!(J, K, -I)
+        return nothing
+    end
+
     # Construct ODEProblem
-    func = ODEFunction(rhs!, mass_matrix=M, jac_prototype=copy(K))
+    func = ODEFunction(rhs!, mass_matrix=M, jac=jac!, jac_prototype=copy(K))
     return ODEProblem(
         func,
         problem.u_0,
