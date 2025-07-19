@@ -102,7 +102,7 @@ parareal_args = (;
 
 # %% MLMC
 L = 2                               # use refinement levels 0, ..., L
-mlmc_tol = 1e-2                     # desired tolerance on RMSE
+mlmc_tol = 3e-3                     # desired tolerance on RMSE
 warmup_samples = 10                 # number of samples initially evaluated
 benchmark_time = 1000
 run_args = (;
@@ -120,6 +120,7 @@ dists = Uniform.(sigma_nom .- deviations, sigma_nom .+ deviations)
 cost_benchmark_time = 300       # cost benchmark length
 # determine cost of single eval per level
 costs = fill(Inf, L + 1)
+effort = fill(Inf, L + 1)
 for l = 0:L
     costs[l+1] = @belapsed begin
         n_params = length($dists)
@@ -127,16 +128,19 @@ for l = 0:L
 
         sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=false)
         qoi = qoi_fn(sol)
+        effort[$l+1] = sol.stats.nsolve
     end seconds = cost_benchmark_time
 end
 
 # determine cost on finest level (with parareal)
+effort_para_single = [Inf]
 cost_para = @belapsed begin
     n_params = length($dists)
     params = transform.($dists, rand(n_params))
 
-    sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=true, parareal_args=$parareal_args)
+    sol = MLMC_Parareal.solve(p, p.alg, ($L, $L), params; use_parareal=true, parareal_args=$parareal_args)
     qoi = qoi_fn(sol)
+    effort_para_single[1] = sol.stats.nsolve
 end seconds = cost_benchmark_time
 
 
@@ -150,6 +154,7 @@ time_ref = @elapsed res_ref = run(
     e_ref;
     run_args...,
 )
+effort_ref = sum(res_ref["history"][:nb_of_samples] .* effort)
 
 # %% MLMC with Parareal
 e_para = MLMC_Experiment(p, qoi_fn, dists,
@@ -163,6 +168,7 @@ time_para = @elapsed res_para = run(
     e_para;
     run_args...,
 )
+effort_para = sum(res_para["history"][:nb_of_samples][1:end-1] .* effort[1:end-1]) + res_para["history"][:nb_of_samples][end] * effort_para_single[1]
 
 
 # %% save settings, results
@@ -178,8 +184,10 @@ settings = (;
 )
 results = (;
     costs, cost_para,
+    effort, effort_para_single,
     res_ref, time_ref,
-    res_para, time_para
+    res_para, time_para,
+    effort_ref, effort_para,
 )
 
 name = savename(p.name, settings, "jld2")

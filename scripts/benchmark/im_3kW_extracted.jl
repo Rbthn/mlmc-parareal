@@ -19,7 +19,7 @@ end
     # a Julia program and the GetDP .pro file. Hardcoding these values for now.
     const freq = 50             # frequency of the excitation
     const period = 1 / freq     # period length
-    const nsteps = 100          # number of timesteps per period
+    const nsteps = 10           # number of timesteps per period
     const nperiods = 8          # number of periods
     const dt = period / nsteps  # time step
     const t_0 = 0.0             # start time
@@ -103,7 +103,7 @@ parareal_args = (;
 
 # %% MLMC
 L = 2                               # use refinement levels 0, ..., L
-mlmc_tol = 1e-2                     # desired tolerance on RMSE
+mlmc_tol = 3e-3                     # desired tolerance on RMSE
 warmup_samples = 10                 # number of samples initially evaluated
 run_args = (;
     continuate=false,
@@ -117,15 +117,16 @@ dists = Uniform.(sigma_nom .- deviations, sigma_nom .+ deviations)
 
 
 # %% Benchmark
-nruns = 10                      # number of runs over which to average
-ncores = 100                    # numer of parallel evaluations assumed
-cost_benchmark_time = 300       # cost benchmark length
+#nruns = 10                      # number of runs over which to average
+#ncores = 100                    # numer of parallel evaluations assumed
+cost_benchmark_time = 30        # cost benchmark length
 
 # fine cost ref, fine cost para, total cost ref, total cost para
-timing = zeros(nruns, 4)
+timing = zeros(nruns, 6)
 
 # determine cost of single eval per level
 costs = fill(Inf, L + 1)
+effort = fill(Inf, L + 1)
 for l = 0:L
     costs[l+1] = @belapsed begin
         n_params = length($dists)
@@ -133,16 +134,19 @@ for l = 0:L
 
         sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=false)
         qoi = qoi_fn(sol)
+        effort[$l+1] = sol.stats.nsolve
     end seconds = cost_benchmark_time
 end
 
 # determine cost on finest level (with parareal)
+effort_para = [Inf]
 cost_para = @belapsed begin
     n_params = length($dists)
     params = transform.($dists, rand(n_params))
 
-    sol = MLMC_Parareal.solve(p, p.alg, ($l, $L), params; use_parareal=true, parareal_args=$parareal_args)
+    sol = MLMC_Parareal.solve(p, p.alg, ($L, $L), params; use_parareal=true, parareal_args=$parareal_args)
     qoi = qoi_fn(sol)
+    effort_para[1] = sol.stats.nsolve
 end seconds = cost_benchmark_time
 
 
@@ -173,13 +177,17 @@ for i = 1:nruns
     total_cost_ref = sum(seq_runs .* costs)
     total_cost_para = sum(seq_runs[1:end-1] .* costs[1:end-1]) + div_up.(nb_of_samples[end] * parareal_args.parareal_intervals, ncores) * cost_para
 
-    timing[i, :] = [costs[end], cost_para, total_cost_ref, total_cost_para]
+    # effort
+    total_effort_ref = sum(nb_of_samples .* effort)
+    total_effort_para = sum(nb_of_samples[1:end-1] .* effort[1:end-1]) + nb_of_samples[end] * effort_para
+
+    timing[i, :] = [costs[end], cost_para, total_cost_ref, total_cost_para, total_effort_ref, total_effort_para]
 end
 
-# mean reduction in single eval
-mean_reduction_single = mean(1 .- timing[:, 2] ./ timing[:, 1])
-mean_reduction_overall = mean(1 .- timing[:, 4] ./ timing[:, 3])
-
+# mean values
+mean_speedup_single = mean(timing[:, 1] ./ timing[:, 2])
+mean_speedup_overall = mean(timing[:, 3] ./ timing[:, 4])
+mean_increase_effort = mean(timing[:, 6] ./ timing[:, 5])
 
 
 # %% save settings, results
@@ -196,7 +204,7 @@ settings = (;
 )
 results = (;
     costs, cost_para,
-    timing, mean_reduction_single, mean_reduction_overall
+    timing, mean_speedup_single, mean_speedup_overall, mean_increase_effort
 )
 
 name = savename(p.name, settings, "jld2")

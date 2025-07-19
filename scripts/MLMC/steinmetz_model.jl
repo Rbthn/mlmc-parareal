@@ -141,6 +141,7 @@ end
 # %% cost model
 cost_benchmark_time = 10
 costs = fill(Inf, L + 1)
+effort = fill(Inf, L + 1)
 for l = 0:L
     costs[l+1] = @belapsed begin
         n_params = length($dists)
@@ -151,9 +152,18 @@ for l = 0:L
             dt=compute_timestep($p, $l)
         )
         qoi = total_energy(sol)
+        effort[$l+1] = sol.stats.nsolve
     end seconds = cost_benchmark_time
 end
 
+effort_para_single = [Inf]
+cost_para = @belapsed begin
+    n_params = length($dists)
+    params = transform.($dists, rand(n_params))
+    sol = MLMC_Parareal.solve(p, p.alg, ($L, $L), params; use_parareal=true, parareal_args=$parareal_args)
+    qoi = total_energy(sol)
+    effort_para_single[1] = sol.stats.nsolve
+end seconds = cost_benchmark_time
 
 
 # %% MLMC without Parareal
@@ -162,10 +172,11 @@ e_ref = MLMC_Experiment(p, total_energy, dists,
     use_parareal=false,
     cost_model=(l -> costs[l[1]+1]),
 )
-@time res_ref = run(
+time_ref = @elapsed res_ref = run(
     e_ref;
     run_args...,
 )
+effort_ref = sum(res_ref["history"][:nb_of_samples] .* effort)
 
 bench_ref = @benchmark run(
     e_ref;
@@ -183,10 +194,12 @@ e_para = MLMC_Experiment(p, total_energy, dists,
     parareal_args=parareal_args,
     cost_model=(l -> costs[l[1]+1]),
 )
-@time res_para = run(
+time_para = @elapsed res_para = run(
     e_para;
     run_args...,
 )
+effort_para = sum(res_para["history"][:nb_of_samples][1:end-1] .* effort[1:end-1]) + res_para["history"][:nb_of_samples][end] * effort_para_single[1]
+
 
 bench_para = @benchmark run(
     e_para;
@@ -202,9 +215,10 @@ settings = (;
     L, mlmc_tol, deviations, warmup_samples, seed=e_ref.seed, run_args
 )
 results = (;
-    costs,
+    costs, effort, effort_para_single,
     res_ref, bench_ref,
-    res_para, bench_para
+    res_para, bench_para,
+    effort_ref, effort_para,
 )
 
 name = savename(p.name, settings, "jld2")
